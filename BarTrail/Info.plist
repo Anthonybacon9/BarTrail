@@ -4,10 +4,12 @@
 <dict>
     <key>NSUserNotificationsUsageDescription</key>
     <string>BarTrail sends notifications when your night ends and to remind you about long tracking sessions</string>
+    
     <key>UIBackgroundModes</key>
     <array>
         <string>location</string>
     </array>
+    
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>BarTrail tracks your route to show where you've been during your night out</string>
 
@@ -16,9 +18,8 @@
 
     <key>NSLocationAlwaysUsageDescription</key>
     <string>BarTrail needs background location access to track your full route even when the app is closed</string>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict/>
-	</array>
+    
+    <key>NSSupportsLiveActivities</key>
+    <true/>
 </dict>
 </plist>

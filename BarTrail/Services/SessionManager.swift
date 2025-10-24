@@ -11,10 +11,13 @@ class SessionManager: NSObject, ObservableObject {
     private let locationManager = CLLocationManager()
     private var cancellables = Set<AnyCancellable>()
     
+    // Live Activity update timer
+    private var liveActivityUpdateTimer: Timer?
+    
     // MARK: - Dwell Detection State
     private var dwellCandidate: DwellCandidate?
     private let dwellRadiusMeters: CLLocationDistance = 25
-    private let dwellDurationSeconds: TimeInterval = 60 // 20 minutes
+    private let dwellDurationSeconds: TimeInterval = 20 * 60 // 20 minutes
     
     private struct DwellCandidate {
         let startLocation: CLLocation
@@ -83,6 +86,20 @@ class SessionManager: NSObject, ObservableObject {
         // Schedule long night warning (6 hours)
         NotificationManager.shared.scheduleLongNightWarning(hours: 6)
         
+        // Start auto-stop timer if enabled
+        AutoStopManager.shared.startAutoStopTimer()
+        
+        // Start Live Activity
+        if #available(iOS 16.2, *) {
+            LiveActivityManager.shared.startActivity(
+                sessionId: currentSession!.id.uuidString,
+                startTime: currentSession!.startTime
+            )
+            
+            // Start timer to update Live Activity every 30 seconds
+            startLiveActivityUpdateTimer()
+        }
+        
         print("✅ Night started at \(Date())")
         print("📍 Tracking with accuracy: \(locationManager.desiredAccuracy)m")
         print("📊 Distance filter: \(locationManager.distanceFilter)m")
@@ -107,26 +124,40 @@ class SessionManager: NSObject, ObservableObject {
         // Clear dwell state
         dwellCandidate = nil
         
-        
         // Cancel long night warning
         NotificationManager.shared.cancelLongNightWarning()
+        
+        // Cancel auto-stop timer
+        AutoStopManager.shared.cancelAutoStopTimer()
+        
+        // Stop Live Activity update timer
+        stopLiveActivityUpdateTimer()
+        
+        // Calculate stats
+        let totalDistance = calculateTotalDistance(for: session.route)
+        let duration = session.duration ?? 0
+        
+        // End Live Activity
+        if #available(iOS 16.2, *) {
+            LiveActivityManager.shared.endActivity(
+                finalDistance: session.totalDistance,
+                finalStops: session.dwells.count,
+                duration: duration
+            )
+        }
+        
+        // Save session to storage
+        SessionStorage.shared.saveSession(session)
         
         // Send night ended notification
         NotificationManager.shared.sendNightEndedNotification(session: session)
         
-        SessionStorage.shared.saveSession(session)
-        // Calculate stats
-        let totalDistance = calculateTotalDistance(for: session.route)
-        let duration = session.duration ?? 0
         
         print("🛑 Night stopped at \(Date())")
         print("📍 Total locations tracked: \(session.route.count)")
         print("🏠 Total dwells detected: \(session.dwells.count)")
         print("📏 Total distance: \(String(format: "%.2f", totalDistance / 1000))km")
         print("⏱️ Duration: \(formatDuration(duration))")
-        
-        // In a real app, you'd save this session to CoreData or local storage here
-        // For MVP, it stays in memory until app restart
     }
     
     // MARK: - Helper Methods
@@ -283,6 +314,34 @@ class SessionManager: NSObject, ObservableObject {
             let seconds = Int(duration) % 60
             print("⏱️ Candidate didn't qualify (\(minutes)m \(seconds)s < \(Int(dwellDurationSeconds / 60))min)")
         }
+    }
+    
+    // MARK: - Live Activity Updates
+    
+    private func startLiveActivityUpdateTimer() {
+        guard #available(iOS 16.2, *) else { return }
+        
+        liveActivityUpdateTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            self?.updateLiveActivity()
+        }
+    }
+    
+    private func stopLiveActivityUpdateTimer() {
+        liveActivityUpdateTimer?.invalidate()
+        liveActivityUpdateTimer = nil
+    }
+    
+    @available(iOS 16.2, *)
+    private func updateLiveActivity() {
+        guard let session = currentSession, isTracking else { return }
+        
+        let elapsed = Date().timeIntervalSince(session.startTime)
+        
+        LiveActivityManager.shared.updateActivity(
+            distance: session.totalDistance,
+            stops: session.dwells.count,
+            elapsedTime: elapsed
+        )
     }
 }
 
