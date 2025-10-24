@@ -12,6 +12,10 @@ import MapKit
 struct SessionShareView: View {
     let session: NightSession
     @Environment(\.dismiss) var dismiss
+    @State private var showingShareSheet = false
+    @State private var shareItems: [Any] = []
+    @State private var showingError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         NavigationView {
@@ -82,18 +86,25 @@ struct SessionShareView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingShareSheet) {
+                ShareSheet(activityItems: shareItems)
+            }
+            .alert("Error", isPresented: $showingError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
     
     // MARK: - Share as Text
-    
     private func shareAsText() {
         let duration = session.duration ?? 0
         let hours = Int(duration) / 3600
         let minutes = (Int(duration) % 3600) / 60
         let distance = session.totalDistance
-        let distanceText = distance >= 1000 ? 
-            String(format: "%.2f km", distance / 1000) : 
+        let distanceText = distance >= 1000 ?
+            String(format: "%.2f km", distance / 1000) :
             String(format: "%.0f m", distance)
         
         var text = "🌙 BarTrail Night Summary\n\n"
@@ -116,11 +127,11 @@ struct SessionShareView: View {
             }
         }
         
-        shareContent(items: [text])
+        shareItems = [text]
+        showingShareSheet = true
     }
     
     // MARK: - Export as JSON
-    
     private func exportAsJSON() {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -129,64 +140,55 @@ struct SessionShareView: View {
         do {
             let jsonData = try encoder.encode(session)
             if let jsonString = String(data: jsonData, encoding: .utf8) {
-                // Create temporary file
-                let fileName = "bartrail_session_\(session.startTime.formatted(date: .numeric, time: .omitted)).json"
+                // Create safe filename
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                let dateString = dateFormatter.string(from: session.startTime)
+                let fileName = "bartrail_session_\(dateString).json"
+                
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
                 
                 try jsonString.write(to: tempURL, atomically: true, encoding: .utf8)
                 
-                shareContent(items: [tempURL])
+                shareItems = [tempURL]
+                showingShareSheet = true
             }
         } catch {
-            print("❌ Failed to encode session: \(error)")
+            errorMessage = "Failed to export session data: \(error.localizedDescription)"
+            showingError = true
         }
     }
     
     // MARK: - Share Map Screenshot
+//    private func shareMapScreenshot() {
+//        var text = "🗺️ BarTrail Route\n\n"
+//        
+//        if let first = session.route.first {
+//            text += "Start: \(String(format: "%.4f, %.4f", first.coordinate.latitude, first.coordinate.longitude))\n"
+//        }
+//        
+//        if let last = session.route.last {
+//            text += "End: \(String(format: "%.4f, %.4f", last.coordinate.latitude, last.coordinate.longitude))\n"
+//        }
+//        
+//        text += "\nView in Maps:\n"
+//        if let first = session.route.first {
+//            let mapsURL = "https://maps.apple.com/?q=\(first.coordinate.latitude),\(first.coordinate.longitude)"
+//            text += mapsURL
+//        }
+//        
+//        shareItems = [text]
+//        showingShareSheet = true
+//    }
     
     private func shareMapScreenshot() {
-        // Note: This is a placeholder. In a real app, you'd render the map to an image
-        // For now, we'll share text with coordinates
-        var text = "🗺️ BarTrail Route\n\n"
-        
-        if let first = session.route.first {
-            text += "Start: \(String(format: "%.4f, %.4f", first.coordinate.latitude, first.coordinate.longitude))\n"
-        }
-        
-        if let last = session.route.last {
-            text += "End: \(String(format: "%.4f, %.4f", last.coordinate.latitude, last.coordinate.longitude))\n"
-        }
-        
-        text += "\nView in Maps:\n"
-        if let first = session.route.first {
-            let mapsURL = "https://maps.apple.com/?q=\(first.coordinate.latitude),\(first.coordinate.longitude)"
-            text += mapsURL
-        }
-        
-        shareContent(items: [text])
+        // For now, direct users to use the screenshot feature from the map view
+        let text = "📱 Use the 'Capture Screenshot' option in the map view to share a high-quality image of your route with statistics."
+        shareItems = [text]
+        showingShareSheet = true
     }
     
     // MARK: - Helper Methods
-    
-    private func shareContent(items: [Any]) {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first,
-              let rootViewController = window.rootViewController else {
-            return
-        }
-        
-        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        
-        // For iPad
-        if let popover = activityVC.popoverPresentationController {
-            popover.sourceView = window
-            popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        rootViewController.present(activityVC, animated: true)
-    }
-    
     private func formatDuration(_ duration: TimeInterval) -> String {
         let hours = Int(duration) / 3600
         let minutes = (Int(duration) % 3600) / 60
@@ -204,6 +206,20 @@ struct SessionShareView: View {
         } else {
             return String(format: "%.0f m", distance)
         }
+    }
+}
+
+// MARK: - Share Sheet Wrapper
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // Nothing to update
     }
 }
 

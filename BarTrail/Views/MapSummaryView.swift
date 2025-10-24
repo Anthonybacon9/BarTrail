@@ -10,125 +10,161 @@ struct MapSummaryView: View {
     @State private var showingShareSheet = false
     @State private var dwellPlaceNames: [UUID: String] = [:]
     
+    // Add these for screenshot functionality
+    @State private var showingScreenshotSheet = false
+    @State private var screenshotImage: UIImage?
+    @State private var isCapturingScreenshot = false
+    
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Map View
-                MapReader { proxy in
-                    Map(position: $cameraPosition) {
-                        // Route Polyline
-                        if session.route.count > 1 {
-                            MapPolyline(coordinates: session.route.map { $0.coordinate })
-                                .stroke(.blue, lineWidth: 3)
-                        }
-                        
-                        // Start Point
-                        if let firstLocation = session.route.first {
-                            Annotation("Start", coordinate: firstLocation.coordinate) {
-                                ZStack {
-                                    Circle()
-                                        .fill(.green)
-                                        .frame(width: 20, height: 20)
-                                    Image(systemName: "flag.fill")
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 10))
-                                }
+            NavigationView {
+                ZStack {
+                    // Map View with screenshot capture
+                    MapReader { proxy in
+                        Map(position: $cameraPosition) {
+                            // Route Polyline
+                            if session.route.count > 1 {
+                                MapPolyline(coordinates: session.route.map { $0.coordinate })
+                                    .stroke(.blue, lineWidth: 3)
                             }
-                        }
-                        
-                        // End Point
-                        if let lastLocation = session.route.last, !session.isActive {
-                            Annotation("End", coordinate: lastLocation.coordinate) {
-                                ZStack {
-                                    Circle()
-                                        .fill(.red)
-                                        .frame(width: 20, height: 20)
-                                    Image(systemName: "flag.checkered")
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 10))
-                                }
-                            }
-                        }
-                        
-                        // Dwell Points
-                        ForEach(session.dwells) { dwell in
-                            Annotation("", coordinate: dwell.location) {
-                                Button {
-                                    selectedDwell = dwell
-                                } label: {
+                            
+                            // Start Point
+                            if let firstLocation = session.route.first {
+                                Annotation("Start", coordinate: firstLocation.coordinate) {
                                     ZStack {
                                         Circle()
-                                            .fill(.purple)
-                                            .frame(width: 30, height: 30)
-                                        Image(systemName: "mappin.circle.fill")
+                                            .fill(.green)
+                                            .frame(width: 20, height: 20)
+                                        Image(systemName: "flag.fill")
                                             .foregroundColor(.white)
-                                            .font(.system(size: 16))
+                                            .font(.system(size: 10))
+                                    }
+                                }
+                            }
+                            
+                            // End Point
+                            if let lastLocation = session.route.last, !session.isActive {
+                                Annotation("End", coordinate: lastLocation.coordinate) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(.red)
+                                            .frame(width: 20, height: 20)
+                                        Image(systemName: "flag.checkered")
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 10))
+                                    }
+                                }
+                            }
+                            
+                            // Dwell Points
+                            ForEach(session.dwells) { dwell in
+                                Annotation("", coordinate: dwell.location) {
+                                    Button {
+                                        selectedDwell = dwell
+                                    } label: {
+                                        ZStack {
+                                            Circle()
+                                                .fill(.purple)
+                                                .frame(width: 30, height: 30)
+                                            Image(systemName: "mappin.circle.fill")
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 16))
+                                        }
                                     }
                                 }
                             }
                         }
+                        .mapStyle(.standard(elevation: .realistic))
+                        .onAppear {
+                            updateMapRegion()
+                            loadPlaceNames()
+                        }
                     }
-                    .mapStyle(.standard(elevation: .realistic))
-                    .onAppear {
-                        updateMapRegion()
-                        loadPlaceNames()
+                    
+                    // Summary Card at Bottom
+                    VStack {
+                        Spacer()
+                        summaryCard()
+                            .padding()
                     }
-                }
-                
-                // Summary Card at Bottom
-                VStack {
-                    Spacer()
-                    summaryCard()
-                        .padding()
-                }
-                
-                // Dwell Detail Sheet
-                if let dwell = selectedDwell {
-                    dwellDetailOverlay(dwell: dwell)
-                }
-            }
-            .navigationTitle("Night Summary")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                    
+                    // Dwell Detail Sheet
+                    if let dwell = selectedDwell {
+                        dwellDetailOverlay(dwell: dwell)
+                    }
+                    
+                    // Screenshot capture overlay (hidden during capture)
+                    if isCapturingScreenshot {
+                        Color.clear
+                            .background(.clear)
                     }
                 }
-                
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        updateMapRegion()
-                    } label: {
-                        Image(systemName: "location.fill")
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
+                .navigationTitle("Night Summary")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    
+                    
+                    ToolbarItem(placement: .navigationBarTrailing) {
                         Button {
-                            showingShareSheet = true
+                            captureScreenshot()
                         } label: {
-                            Label("Share", systemImage: "square.and.arrow.up")
+                            Image(systemName: "camera.fill")
                         }
-                        
-                        if session.route.count > 1 {
-                            NavigationLink {
-                                RouteVisualizerView(session: session)
+                    }
+                    
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            updateMapRegion()
+                        } label: {
+                            Image(systemName: "location.fill")
+                        }
+                    }
+                    
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Menu {
+                            Button {
+                                showingShareSheet = true
                             } label: {
-                                Label("Speed View", systemImage: "speedometer")
+                                Label("Share Options", systemImage: "square.and.arrow.up")
                             }
+                            
+                            if session.route.count > 1 {
+                                NavigationLink {
+                                    RouteVisualizerView(session: session)
+                                } label: {
+                                    Label("Speed View", systemImage: "speedometer")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
                         }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
                     }
                 }
-            }
-            .sheet(isPresented: $showingShareSheet) {
-                SessionShareView(session: session)
+                .sheet(isPresented: $showingShareSheet) {
+                    SessionShareView(session: session)
+                        .presentationDetents([.medium, .large])
+                }
+                .sheet(isPresented: $showingScreenshotSheet) {
+                    if let screenshotImage = screenshotImage {
+                        ScreenshotShareView(
+                            image: screenshotImage,
+                            session: session,
+                            onDismiss: {
+                                self.screenshotImage = nil
+                                self.showingScreenshotSheet = false
+                            }
+                        )
+                        .presentationDetents([.medium, .large])
+                    }
+                }
             }
         }
-    }
     
     // MARK: - Summary Card
     
@@ -180,6 +216,50 @@ struct MapSummaryView: View {
         }
         .frame(maxWidth: .infinity)
     }
+    
+    // MARK: - Screenshot Capture
+    private func captureScreenshot() {
+        isCapturingScreenshot = true
+        
+        // Give the UI time to settle
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Get the main window
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first else {
+                isCapturingScreenshot = false
+                return
+            }
+            
+            // Capture the entire screen without cropping
+            let renderer = UIGraphicsImageRenderer(size: window.bounds.size)
+            let image = renderer.image { context in
+                window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            
+            self.screenshotImage = image
+            self.isCapturingScreenshot = false
+            self.showingScreenshotSheet = true
+        }
+    }
+        
+        private func cropImageToContent(_ image: UIImage, in window: UIWindow) -> UIImage {
+            let statusBarHeight = window.windowScene?.statusBarManager?.statusBarFrame.height ?? 0
+            let navigationBarHeight: CGFloat = 44.0 // Approximate navigation bar height
+            let bottomSafeArea = window.safeAreaInsets.bottom
+            
+            let cropRect = CGRect(
+                x: 0,
+                y: statusBarHeight + navigationBarHeight,
+                width: image.size.width,
+                height: image.size.height - (statusBarHeight + navigationBarHeight + bottomSafeArea + 100) // Extra padding for tab bar
+            )
+            
+            guard let cgImage = image.cgImage?.cropping(to: cropRect) else {
+                return image
+            }
+            
+            return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+        }
     
     // MARK: - Dwell Detail Overlay
     

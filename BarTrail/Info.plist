@@ -5,10 +5,20 @@
     <key>NSUserNotificationsUsageDescription</key>
     <string>BarTrail sends notifications when your night ends and to remind you about long tracking sessions</string>
     
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Save this image to camera roll</string>
+    
     <key>UIBackgroundModes</key>
     <array>
         <string>location</string>
     </array>
+    
+    
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
     
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>BarTrail tracks your route to show where you've been during your night out</string>
