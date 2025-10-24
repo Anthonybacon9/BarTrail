@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSUserNotificationsUsageDescription</key>
+    <string>BarTrail sends notifications when your night ends and to remind you about long tracking sessions</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+    </array>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>BarTrail tracks your route to show where you've been during your night out</string>
+
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>BarTrail needs your location to track your night</string>
+
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>BarTrail needs background location access to track your full route even when the app is closed</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict/>
+	</array>
+</dict>
+</plist>
