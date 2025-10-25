@@ -27,7 +27,8 @@ let readyPhrases = [
     "Another one for the books \(readyEmoji.randomElement() ?? "📖")",
     "Start the chaos \(readyEmoji.randomElement() ?? "🔥")",
     "We're locked and loaded \(readyEmoji.randomElement() ?? "🔒")",
-    "Spin up the trail \(readyEmoji.randomElement() ?? "🌀")"
+    "Spin up the trail \(readyEmoji.randomElement() ?? "🌀")",
+    "Own Your Night \(readyEmoji.randomElement() ?? "🫡")"
 ]
 
 let readyEmoji = [
@@ -77,7 +78,7 @@ struct ContentView: View {
                 }
                 .tag(2)
         }
-        .accentColor(Color.barTrailPrimary)
+        .accentColor(Color.barTrailSecondary)
         .onAppear {
             // Request notification permission on first launch
             if !notificationManager.isAuthorized {

@@ -5,7 +5,6 @@
 //  Created by Anthony Bacon on 24/10/2025.
 //
 
-
 import SwiftUI
 import MapKit
 
@@ -23,6 +22,9 @@ struct HistoryView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 16) {
+                            // Weekly Streak Card
+                            weeklyStreakCard()
+                            
                             // Weekly Stats Card
                             weeklyStatsCard()
                             
@@ -115,6 +117,70 @@ struct HistoryView: View {
                 .multilineTextAlignment(.center)
         }
         .padding()
+    }
+    
+    // MARK: - Weekly Streak Card
+    
+    @ViewBuilder
+    private func weeklyStreakCard() -> some View {
+        let streakCount = storage.currentWeeklyStreak()
+        let weekSessions = storage.sessionsThisWeek()
+        let daysThisWeek = storage.daysWithSessionsThisWeek()
+        
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "flame.fill")
+                    .foregroundColor(streakCount > 0 ? .orange : .secondary)
+                Text("Weekly Streak")
+                    .font(.headline)
+                Spacer()
+                
+                if streakCount > 0 {
+                    Text("\(streakCount) day\(streakCount == 1 ? "" : "s")")
+                        .font(.subheadline.bold())
+                        .foregroundColor(.orange)
+                } else {
+                    Text("No streak")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            if !weekSessions.isEmpty {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("This Week")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    HStack(spacing: 4) {
+                        ForEach(0..<7, id: \.self) { dayIndex in
+                            let dayHasSession = daysThisWeek.contains(dayIndex)
+                            Circle()
+                                .fill(dayHasSession ? Color.orange : Color.secondary.opacity(0.3))
+                                .frame(width: 12, height: 12)
+                                .scaleEffect(dayHasSession ? 1.2 : 1.0)
+                        }
+                    }
+                    
+                    if streakCount > 0 {
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Text("Keep it up! \(7 - daysThisWeek.count) nights to go")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
+        .padding(.horizontal)
     }
     
     // MARK: - Weekly Stats Card

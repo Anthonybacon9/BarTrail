@@ -21,12 +21,15 @@ struct MapSummaryView: View {
     // Add this for photo overlay functionality
     @State private var showingPhotoOverlay = false
     
+    @State private var isGeneratingOverlay = false
     @State private var showingTransparentOverlay = false
     @State private var transparentOverlayImage: UIImage?
     
     // ADD THESE FOR LOADING STATE
     @State private var isLoadingPlaceNames = true
     @State private var loadedCount = 0
+    
+    @StateObject private var mapStyleManager = MapStyleManager.shared
     
     var body: some View {
         NavigationView {
@@ -104,7 +107,7 @@ struct MapSummaryView: View {
                             }
                         }
                     }
-                    .mapStyle(.imagery(elevation: .realistic))
+                    .mapStyle(mapStyleManager.getMapStyle())  // Changed from .mapStyle(.imagery(elevation: .realistic))
                     .onAppear {
                         updateMapRegion()
                         loadPlaceNames()
@@ -168,10 +171,15 @@ struct MapSummaryView: View {
                         }
                         
                         Button {
-                            generateTransparentOverlay()
-                        } label: {
-                            Label("Download Route Overlay", systemImage: "arrow.down.circle")
-                        }
+                                generateTransparentOverlay()
+                            } label: {
+                                if isGeneratingOverlay {
+                                    Label("Generating Overlay...", systemImage: "arrow.down.circle")
+                                } else {
+                                    Label("Download Route Overlay", systemImage: "arrow.down.circle")
+                                }
+                            }
+                            .disabled(isGeneratingOverlay)
                         
                         if session.route.count > 1 {
                             NavigationLink {
@@ -216,6 +224,15 @@ struct MapSummaryView: View {
                 if let overlayImage = transparentOverlayImage {
                     TransparentOverlayShareView(image: overlayImage)
                         .presentationDetents([.medium])
+                } else {
+                    // Fallback loading view
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Generating overlay...")
+                            .foregroundColor(.secondary)
+                    }
+                    .presentationDetents([.medium])
                 }
             }
         }
@@ -400,6 +417,10 @@ struct MapSummaryView: View {
     }
     
     private func generateTransparentOverlay() {
+        guard !isGeneratingOverlay else { return }
+        
+        isGeneratingOverlay = true
+        
         Task {
             let overlay = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
@@ -411,9 +432,12 @@ struct MapSummaryView: View {
                 }
             }
             
-            if let overlay = overlay {
+            await MainActor.run {
+                isGeneratingOverlay = false
                 transparentOverlayImage = overlay
-                showingTransparentOverlay = true
+                if overlay != nil {
+                    showingTransparentOverlay = true
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ import SwiftUI
 struct SettingsView: View {
     @StateObject private var autoStopManager = AutoStopManager.shared
     @StateObject private var storage = SessionStorage.shared
+    @StateObject private var mapStyleManager = MapStyleManager.shared
     @State private var showingClearDataAlert = false
     
     var body: some View {
@@ -35,6 +36,29 @@ struct SettingsView: View {
                     Text("Auto-Stop")
                 } footer: {
                     Text("Automatically stop tracking after the specified time to save battery.")
+                }
+                
+                Section {
+                    Picker("Map Style", selection: $mapStyleManager.selectedStyle) {
+                        ForEach(MapStyleType.allCases) { style in
+                            HStack {
+                                Image(systemName: style.icon)
+                                Text(style.rawValue)
+                            }
+                            .tag(style)
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+                    
+                    if let currentStyle = MapStyleType(rawValue: mapStyleManager.selectedStyle.rawValue) {
+                        Text(currentStyle.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("Map Appearance")
+                } footer: {
+                    Text("Choose how the map appears in your night summaries.")
                 }
                 
                 // Dwell Detection Settings

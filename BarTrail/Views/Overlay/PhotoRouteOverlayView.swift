@@ -24,6 +24,25 @@ struct PhotoRouteOverlayView: View {
     @State private var showSaveSuccess = false
     @State private var dwellPlaceNames: [UUID: String] = [:]
     
+    @State private var showWatermark: Bool = true
+    @State private var watermarkText: String = "BarTrail"
+    @State private var watermarkPosition: WatermarkPosition = .bottomRight
+    @State private var watermarkOpacity: Double = 0.8
+    
+    enum WatermarkPosition: CaseIterable {
+        case topLeft, topRight, bottomLeft, bottomRight, center
+        
+        var displayName: String {
+            switch self {
+            case .topLeft: return "Top Left"
+            case .topRight: return "Top Right"
+            case .bottomLeft: return "Bottom Left"
+            case .bottomRight: return "Bottom Right"
+            case .center: return "Center"
+            }
+        }
+    }
+    
     // Track the view size for proper coordinate conversion
     @State private var viewSize: CGSize = .zero
     
@@ -209,22 +228,25 @@ struct PhotoRouteOverlayView: View {
             )
             
             let renderer = UIGraphicsImageRenderer(size: imageSize)
-            
-            let composite = renderer.image { context in
-                // Draw base image
-                baseImage.draw(in: CGRect(origin: .zero, size: imageSize))
-                
-                // Calculate overlay position in image coordinates
-                let overlayOrigin = CGPoint(
-                    x: (imageSize.width - finalOverlaySize.width) / 2 + (overlayImageOffset.width * baseScaleFactor),
-                    y: (imageSize.height - finalOverlaySize.height) / 2 + (overlayImageOffset.height * baseScaleFactor)
-                )
-                
-                let overlayRect = CGRect(origin: overlayOrigin, size: finalOverlaySize)
-                
-                // Draw overlay with opacity
-                overlay.draw(in: overlayRect, blendMode: .normal, alpha: overlayOpacity)
-            }
+                    
+                    let composite = renderer.image { context in
+                        // Draw base image
+                        baseImage.draw(in: CGRect(origin: .zero, size: imageSize))
+                        
+                        // Calculate overlay position
+                        let overlayOrigin = CGPoint(
+                            x: (imageSize.width - finalOverlaySize.width) / 2 + (overlayImageOffset.width * baseScaleFactor),
+                            y: (imageSize.height - finalOverlaySize.height) / 2 + (overlayImageOffset.height * baseScaleFactor)
+                        )
+                        
+                        let overlayRect = CGRect(origin: overlayOrigin, size: finalOverlaySize)
+                        
+                        // Draw overlay with opacity
+                        overlay.draw(in: overlayRect, blendMode: .normal, alpha: overlayOpacity)
+                        
+                        // ADD WATERMARK HERE
+                        drawWatermark(in: context, size: imageSize)
+                    }
             
             // Save to photo library directly
             UIImageWriteToSavedPhotosAlbum(composite, nil, nil, nil)
@@ -236,6 +258,43 @@ struct PhotoRouteOverlayView: View {
                 self.showingShareSheet = true
             }
         }
+    }
+    // MARK: - Watermark Methods
+
+    private func drawWatermark(in context: UIGraphicsImageRendererContext, size: CGSize) {
+        guard showWatermark else { return }
+        
+        let ctx = context.cgContext
+        let text = NSString(string: watermarkText)
+        
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 24, weight: .bold),
+            .foregroundColor: UIColor.white.withAlphaComponent(watermarkOpacity),
+            .strokeColor: UIColor.black.withAlphaComponent(watermarkOpacity * 0.7),
+            .strokeWidth: -1.0
+        ]
+        
+        let textSize = text.size(withAttributes: attributes)
+        let padding: CGFloat = 20
+        
+        let textRect: CGRect = {
+            switch watermarkPosition {
+            case .topLeft:
+                return CGRect(x: padding, y: padding, width: textSize.width, height: textSize.height)
+            case .topRight:
+                return CGRect(x: size.width - textSize.width - padding, y: padding, width: textSize.width, height: textSize.height)
+            case .bottomLeft:
+                return CGRect(x: padding, y: size.height - textSize.height - padding, width: textSize.width, height: textSize.height)
+            case .bottomRight:
+                return CGRect(x: size.width - textSize.width - padding, y: size.height - textSize.height - padding, width: textSize.width, height: textSize.height)
+            case .center:
+                return CGRect(x: (size.width - textSize.width) / 2, y: (size.height - textSize.height) / 2, width: textSize.width, height: textSize.height)
+            }
+        }()
+        
+        ctx.setShadow(offset: CGSize(width: 1, height: 1), blur: 3, color: UIColor.black.withAlphaComponent(0.5).cgColor)
+        text.draw(in: textRect, withAttributes: attributes)
+        ctx.setShadow(offset: .zero, blur: 0, color: nil)
     }
     
     // MARK: - Controls Panel
@@ -321,12 +380,23 @@ struct PhotoRouteOverlayView: View {
                 .padding(.horizontal)
             
             PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                Label("Choose Photo", systemImage: "photo.on.rectangle")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(12)
+                if #available(iOS 26.0, *) {
+                    Label("Choose Photo", systemImage: "photo.on.rectangle")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .glassEffect(.regular.tint(.blue/*.opacity(0.5)*/))
+                    //                    .background(Color.blue)
+                        .cornerRadius(12)
+                } else {
+                    Label("Choose Photo", systemImage: "photo.on.rectangle")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+//                        .glassEffect()
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                }
             }
             .onChange(of: selectedPhoto) { _, newValue in
                 loadPhoto(from: newValue)
@@ -351,7 +421,7 @@ struct PhotoRouteOverlayView: View {
         }
     }
     
-    // MARK: - Load Photo
+    // MARK: - Load Photo (UPDATED)
     
     private func loadPhoto(from item: PhotosPickerItem?) {
         guard let item = item else { return }
@@ -361,6 +431,8 @@ struct PhotoRouteOverlayView: View {
                let image = UIImage(data: data) {
                 await MainActor.run {
                     self.selectedImage = image
+                    // Clear the selected photo to allow picking again if needed
+                    self.selectedPhoto = nil
                 }
             }
         }

@@ -4,14 +4,24 @@
 <dict>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Save the image</string>
+    
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>BarTrail tracks your route to show where you've been during your night out</string>
+    
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>BarTrail needs your location to track your night</string>
+    
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>BarTrail sends notifications when your night ends and to remind you about long tracking sessions</string>
+    
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
 	</array>
+    
 	<key>UIFileSharingEnabled</key>
 	<true/>
+    
     <key>UIAppFonts</key>
     <array>
         <string>BBHSansBogle-Regular.ttf</string>

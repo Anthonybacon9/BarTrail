@@ -112,17 +112,29 @@ struct TransparentOverlayShareView: View {
     private func shareImage() {
         guard let pngData = image.pngData() else { return }
         
-        // Create a temporary file URL for the PNG
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("route-overlay.png")
+        // Create a temporary file URL in a more accessible location
+        let tempDirectory = FileManager.default.temporaryDirectory
+        let fileName = "route-overlay-\(UUID().uuidString).png"
+        let tempURL = tempDirectory.appendingPathComponent(fileName)
         
         do {
             try pngData.write(to: tempURL)
+            
+            // Ensure file permissions
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o644],
+                ofItemAtPath: tempURL.path
+            )
             
             let activityVC = UIActivityViewController(
                 activityItems: [tempURL],
                 applicationActivities: nil
             )
+            
+            // Clean up the file after sharing completes
+            activityVC.completionWithItemsHandler = { _, _, _, _ in
+                try? FileManager.default.removeItem(at: tempURL)
+            }
             
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                let window = windowScene.windows.first,
@@ -133,7 +145,15 @@ struct TransparentOverlayShareView: View {
                     currentVC = presentedVC
                 }
                 
-                activityVC.popoverPresentationController?.sourceView = currentVC.view
+                // For iPad support
+                if let popoverController = activityVC.popoverPresentationController {
+                    popoverController.sourceView = currentVC.view
+                    popoverController.sourceRect = CGRect(x: currentVC.view.bounds.midX,
+                                                        y: currentVC.view.bounds.midY,
+                                                        width: 0, height: 0)
+                    popoverController.permittedArrowDirections = []
+                }
+                
                 currentVC.present(activityVC, animated: true)
             }
         } catch {

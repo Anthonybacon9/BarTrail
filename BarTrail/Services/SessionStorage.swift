@@ -54,6 +54,63 @@ class SessionStorage: ObservableObject {
         print("🗑️ All sessions cleared")
     }
     
+    // Get days of the week (0-6, Monday-Sunday) that have sessions this week
+    func daysWithSessionsThisWeek() -> [Int] {
+        let calendar = Calendar.current
+        // Get the start of the current week (Monday)
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        let weekSessions = sessions.filter { $0.startTime >= weekStart }
+        
+        var days: [Int] = []
+        for session in weekSessions {
+            // Convert to 0-6 where 0=Monday, 6=Sunday
+            var dayOfWeek = calendar.component(.weekday, from: session.startTime) - 2
+            if dayOfWeek < 0 {
+                dayOfWeek = 6 // Sunday becomes 6
+            }
+            if !days.contains(dayOfWeek) {
+                days.append(dayOfWeek)
+            }
+        }
+        
+        return days.sorted()
+    }
+    
+    // Calculate current weekly streak (consecutive days with sessions this week)
+    func currentWeeklyStreak() -> Int {
+        let daysWithSessions = daysWithSessionsThisWeek()
+        let calendar = Calendar.current
+        
+        // Convert current day to 0-6 where 0=Monday, 6=Sunday
+        var today = calendar.component(.weekday, from: Date()) - 2
+        if today < 0 {
+            today = 6 // Sunday becomes 6
+        }
+        
+        // If today has a session, start counting from today
+        // Otherwise, start from yesterday
+        let startDay = daysWithSessions.contains(today) ? today : today - 1
+        
+        var streak = 0
+        var currentDay = startDay
+        
+        // Count backwards until we find a day without a session
+        while currentDay >= 0 && daysWithSessions.contains(currentDay) {
+            streak += 1
+            currentDay -= 1
+        }
+        
+        return streak
+    }
+    
+    // Helper method to get the start of week (Monday)
+    func startOfWeek() -> Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        return calendar.date(from: components) ?? Date()
+    }
+    
+    
     // MARK: - Persistence
     
     private func saveSessions() {
