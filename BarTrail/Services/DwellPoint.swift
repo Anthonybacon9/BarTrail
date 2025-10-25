@@ -11,6 +11,7 @@ struct DwellPoint: Codable, Identifiable {
     var duration: TimeInterval {
         endTime.timeIntervalSince(startTime)
     }
+    var placeName: String?
     
     init(id: UUID = UUID(), location: CLLocationCoordinate2D, startTime: Date, endTime: Date) {
         self.id = id
