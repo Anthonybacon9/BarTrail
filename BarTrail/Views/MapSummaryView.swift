@@ -73,7 +73,7 @@ struct MapSummaryView: View {
                                 }
                             }
                         }
-                        .mapStyle(.standard(elevation: .realistic))
+                        .mapStyle(.imagery(elevation: .realistic))
                         .onAppear {
                             updateMapRegion()
                             loadPlaceNames()

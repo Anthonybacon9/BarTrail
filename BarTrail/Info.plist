@@ -2,34 +2,25 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>NSUserNotificationsUsageDescription</key>
-    <string>BarTrail sends notifications when your night ends and to remind you about long tracking sessions</string>
-    
-    <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>Save this image to camera roll</string>
-    
-    <key>UIBackgroundModes</key>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>BarTrail sends notifications when your night ends and to remind you about long tracking sessions</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+    <key>UIAppFonts</key>
     <array>
-        <string>location</string>
+        <string>BBHSansBogle-Regular.ttf</string>
+        <string>Orbitron.ttf</string>
+        <string>Orbitron-Bold.ttf</string>
+        <string>Poppins-Bold.ttf</string>
+        <string>Poppins-Light.ttf</string>
+        <string>Poppins-Medium.ttf</string>
+        <string>Poppins-Regular.ttf</string>
+        <string>Poppins-SemiBold.ttf</string>
+        <string>Poppins-Thin.ttf</string>
     </array>
-    
-    
-    <key>UIFileSharingEnabled</key>
-    <true/>
-    
-    <key>LSSupportsOpeningDocumentsInPlace</key>
-    <true/>
-    
-    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>BarTrail tracks your route to show where you've been during your night out</string>
-
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>BarTrail needs your location to track your night</string>
-
-    <key>NSLocationAlwaysUsageDescription</key>
-    <string>BarTrail needs background location access to track your full route even when the app is closed</string>
-    
-    <key>NSSupportsLiveActivities</key>
-    <true/>
 </dict>
 </plist>

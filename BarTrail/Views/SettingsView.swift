@@ -102,19 +102,19 @@ struct SettingsView: View {
                     HStack {
                         Text("Version")
                         Spacer()
-                        Text("1.0.0")
+                        Text("\(Bundle.main.releaseVersionNumber ?? "Unknown") (\(Bundle.main.buildVersionNumber ?? "Unknown"))")
                             .foregroundColor(.secondary)
                     }
                     
-                    Link(destination: URL(string: "https://github.com")!) {
-                        HStack {
-                            Text("GitHub")
-                            Spacer()
-                            Image(systemName: "arrow.up.forward")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
+//                    Link(destination: URL(string: "https://github.com")!) {
+//                        HStack {
+//                            Text("GitHub")
+//                            Spacer()
+//                            Image(systemName: "arrow.up.forward")
+//                                .font(.caption)
+//                                .foregroundColor(.secondary)
+//                        }
+//                    }
                 } header: {
                     Text("About")
                 }
@@ -129,6 +129,16 @@ struct SettingsView: View {
                 Text("This will permanently delete all \(storage.sessions.count) session(s). This action cannot be undone.")
             }
         }
+    }
+}
+
+extension Bundle {
+    var releaseVersionNumber: String? {
+        return infoDictionary?["CFBundleShortVersionString"] as? String
+    }
+    
+    var buildVersionNumber: String? {
+        return infoDictionary?["CFBundleVersion"] as? String
     }
 }
 
