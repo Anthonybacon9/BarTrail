@@ -6,12 +6,27 @@
 //
 
 import SwiftUI
+import RevenueCat
 
 @main
 struct BarTrailApp: App {
+    @State private var isOnboardingComplete = false
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
+    
+//    init() {
+//        Purchases.configure(withAPIKey: "appl_XGEpBFsheoTdxkzXHkSsZSSyBrN")
+//    }
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if !isOnboardingComplete {
+                    OnboardingFlow(isOnboardingComplete: $isOnboardingComplete)
+                        .environmentObject(revenueCatManager)
+                } else {
+                    ContentView()
+                        .environmentObject(revenueCatManager)
+                }
+//            PremiumBuyingTest()
         }
     }
 }

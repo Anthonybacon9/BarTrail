@@ -1,11 +1,3 @@
-//
-//  GeocodingService.swift
-//  BarTrail
-//
-//  Created by Anthony Bacon on 24/10/2025.
-//
-
-
 import Foundation
 import CoreLocation
 import MapKit
@@ -15,10 +7,144 @@ class GeocodingService {
     
     private let geocoder = CLGeocoder()
     private var cache: [String: String] = [:]
+    private var nearbyCache: [String: [VenueOption]] = [:] // Cache for nearby venues
     
     private init() {}
     
-    // MARK: - Improved Venue Name Detection
+    // MARK: - Venue Option Model
+    
+    struct VenueOption: Identifiable {
+        let id = UUID()
+        let name: String
+        let distance: Double // Distance from the dwell point in meters
+        let category: String? // e.g., "Restaurant", "Bar", "Cafe"
+        
+        var formattedDistance: String {
+            if distance < 1000 {
+                return String(format: "%.0fm away", distance)
+            } else {
+                return String(format: "%.1fkm away", distance / 1000)
+            }
+        }
+    }
+    
+    // MARK: - Get Multiple Nearby Venues
+    
+    func getNearbyVenues(for coordinate: CLLocationCoordinate2D, radius: CLLocationDistance = 150) async -> [VenueOption] {
+        let cacheKey = "\(coordinate.latitude),\(coordinate.longitude)-nearby"
+        
+        // Check cache first
+        if let cached = nearbyCache[cacheKey] {
+            print("✅ Returning cached nearby venues: \(cached.count) options")
+            return cached
+        }
+        
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        var venues: [VenueOption] = []
+        
+        // Search categories for nightlife/dining
+        let categories = [
+            "bar", "pub", "nightclub", "restaurant", "cafe",
+            "brewery", "lounge", "club", "hotel", "venue"
+        ]
+        
+        // Use TaskGroup to search all categories concurrently
+        await withTaskGroup(of: [VenueOption].self) { group in
+            for category in categories {
+                group.addTask {
+                    await self.searchCategory(category: category, coordinate: coordinate, location: location, radius: radius)
+                }
+            }
+            
+            for await categoryVenues in group {
+                venues.append(contentsOf: categoryVenues)
+            }
+        }
+        
+        // Remove duplicates (same name, similar location)
+        venues = removeDuplicateVenues(venues)
+        
+        // Sort by distance
+        venues.sort { $0.distance < $1.distance }
+        
+        // Limit to top 10 closest venues
+        let topVenues = Array(venues.prefix(10))
+        
+        // Cache the results
+        nearbyCache[cacheKey] = topVenues
+        
+        print("✅ Found \(topVenues.count) nearby venues")
+        return topVenues
+    }
+    
+    // MARK: - Search Single Category
+    
+    private func searchCategory(category: String, coordinate: CLLocationCoordinate2D, location: CLLocation, radius: CLLocationDistance) async -> [VenueOption] {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = category
+        request.region = MKCoordinateRegion(
+            center: coordinate,
+            latitudinalMeters: radius * 2,
+            longitudinalMeters: radius * 2
+        )
+        request.resultTypes = [.pointOfInterest]
+        
+        let search = MKLocalSearch(request: request)
+        
+        do {
+            let response = try await search.start()
+            
+            var options: [VenueOption] = []
+            
+            for item in response.mapItems {
+                guard let itemLocation = item.placemark.location,
+                      let name = item.name,
+                      !name.isEmpty else { continue }
+                
+                let distance = itemLocation.distance(from: location)
+                
+                // Only include venues within the specified radius
+                if distance <= radius {
+                    // Clean up the category name
+                    let categoryName: String
+                    if let poiCategory = item.pointOfInterestCategory {
+                        categoryName = cleanCategoryName(poiCategory.rawValue)
+                    } else {
+                        categoryName = category.capitalized
+                    }
+                    
+                    options.append(VenueOption(
+                        name: name,
+                        distance: distance,
+                        category: categoryName
+                    ))
+                }
+            }
+            
+            return options
+        } catch {
+            return []
+        }
+    }
+    
+    // MARK: - Remove Duplicate Venues
+    
+    private func removeDuplicateVenues(_ venues: [VenueOption]) -> [VenueOption] {
+        var seen: Set<String> = []
+        var unique: [VenueOption] = []
+        
+        for venue in venues {
+            let normalizedName = venue.name.lowercased().trimmingCharacters(in: .whitespaces)
+            if !seen.contains(normalizedName) {
+                seen.insert(normalizedName)
+                unique.append(venue)
+            }
+        }
+        
+        return unique
+    }
+    
+    // MARK: - Improved Venue Name Detection (Original Method)
     
     func getBestVenueName(for coordinate: CLLocationCoordinate2D) async -> String? {
         let cacheKey = "\(coordinate.latitude),\(coordinate.longitude)"
@@ -28,7 +154,7 @@ class GeocodingService {
             return cached
         }
         
-        // Strategy 1: Try MKLocalSearch for nearby venues (most reliable for business names)
+        // Strategy 1: Try MKLocalSearch for nearby venues
         if let venueName = await searchForVenueName(coordinate: coordinate) {
             cache[cacheKey] = venueName
             print("✅ Found venue via local search: \(venueName)")
@@ -42,7 +168,7 @@ class GeocodingService {
             return poiName
         }
         
-        // Strategy 3: Last resort - use address but prefer locality over street
+        // Strategy 3: Last resort - use address
         if let addressName = await getAddressName(for: coordinate) {
             cache[cacheKey] = addressName
             print("⚠️ Using address name: \(addressName)")
@@ -53,12 +179,11 @@ class GeocodingService {
         return nil
     }
     
-    // MARK: - Improved Local Search
+    // MARK: - Private Helper Methods
     
     private func searchForVenueName(coordinate: CLLocationCoordinate2D, radius: CLLocationDistance = 50) async -> String? {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         
-        // Try multiple search categories
         let categories = [
             "restaurant", "bar", "pub", "club", "cafe", "nightclub",
             "brewery", "lounge", "hotel", "store", "shop", "mall"
@@ -79,7 +204,6 @@ class GeocodingService {
             do {
                 let response = try await search.start()
                 
-                // Find the closest place within radius
                 let sortedPlaces = response.mapItems.sorted { place1, place2 in
                     let dist1 = place1.placemark.location?.distance(from: location) ?? Double.greatestFiniteMagnitude
                     let dist2 = place2.placemark.location?.distance(from: location) ?? Double.greatestFiniteMagnitude
@@ -94,14 +218,12 @@ class GeocodingService {
                     return name
                 }
             } catch {
-                continue // Try next category
+                continue
             }
         }
         
         return nil
     }
-    
-    // MARK: - Improved POI Name Detection
     
     private func getPOIName(for coordinate: CLLocationCoordinate2D) async -> String? {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
@@ -113,20 +235,16 @@ class GeocodingService {
                 return nil
             }
             
-            // Priority 1: Areas of Interest (most likely business names)
             if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
                 return areasOfInterest.first
             }
             
-            // Priority 2: Name field (if it's not just an address component)
             if let name = placemark.name,
                isValidBusinessName(name, placemark: placemark) {
                 return name
             }
             
-            // Priority 3: Check if this is a point of interest
             if placemark.administrativeArea != nil || placemark.locality != nil {
-                // This might be a significant location, use the most specific name available
                 if let name = placemark.name, !name.isEmpty {
                     return name
                 }
@@ -139,8 +257,6 @@ class GeocodingService {
         }
     }
     
-    // MARK: - Address Name (fallback)
-    
     private func getAddressName(for coordinate: CLLocationCoordinate2D) async -> String? {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         
@@ -151,7 +267,6 @@ class GeocodingService {
                 return nil
             }
             
-            // Prefer locality/subLocality over street address
             if let locality = placemark.locality {
                 if let subLocality = placemark.subLocality, subLocality != locality {
                     return "\(subLocality), \(locality)"
@@ -159,17 +274,13 @@ class GeocodingService {
                 return locality
             }
             
-            // Fallback to thoroughfare
             return placemark.thoroughfare ?? "Unknown Location"
         } catch {
             return nil
         }
     }
     
-    // MARK: - Business Name Validation
-    
     private func isValidBusinessName(_ name: String, placemark: CLPlacemark) -> Bool {
-        // Exclude generic address components
         let excludedPatterns = [
             placemark.thoroughfare,
             placemark.subThoroughfare,
@@ -182,7 +293,6 @@ class GeocodingService {
             }
         }
         
-        // Additional checks
         guard name.count > 3 else { return false }
         guard !name.contains("Street") else { return false }
         guard !name.contains("Avenue") else { return false }
@@ -194,58 +304,23 @@ class GeocodingService {
     
     func clearCache() {
         cache.removeAll()
-    }
-}
-
-// MARK: - Place Info Model
-
-struct PlaceInfo {
-    let name: String?
-    let thoroughfare: String?
-    let subThoroughfare: String?
-    let locality: String?
-    let subLocality: String?
-    let administrativeArea: String?
-    let postalCode: String?
-    let country: String?
-    
-    var formattedAddress: String {
-        var components: [String] = []
-        
-        if let subThoroughfare = subThoroughfare, let thoroughfare = thoroughfare {
-            components.append("\(subThoroughfare) \(thoroughfare)")
-        } else if let thoroughfare = thoroughfare {
-            components.append(thoroughfare)
-        }
-        
-        if let locality = locality {
-            components.append(locality)
-        }
-        
-        if let administrativeArea = administrativeArea {
-            components.append(administrativeArea)
-        }
-        
-        if let postalCode = postalCode {
-            components.append(postalCode)
-        }
-        
-        return components.joined(separator: ", ")
+        nearbyCache.removeAll()
     }
     
-    var shortAddress: String {
-        if let name = name {
-            return name
+    // MARK: - Clean Category Name
+    
+    private func cleanCategoryName(_ rawCategory: String) -> String {
+        // Remove "MKPOICategory" prefix if present
+        var cleaned = rawCategory
+        if cleaned.hasPrefix("MKPOICategory") {
+            cleaned = String(cleaned.dropFirst("MKPOICategory".count))
         }
         
-        if let thoroughfare = thoroughfare {
-            return thoroughfare
-        }
+        // Convert camelCase to readable format
+        // e.g., "restaurant" -> "Restaurant", "nightlife" -> "Nightlife"
+        let result = cleaned.replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
         
-        if let locality = locality {
-            return locality
-        }
-        
-        return "Unknown Location"
+        // Capitalize first letter
+        return result.prefix(1).uppercased() + result.dropFirst().lowercased()
     }
 }

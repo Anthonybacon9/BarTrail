@@ -24,7 +24,7 @@ struct RouteVisualizerView: View {
                     // Draw colored segments based on speed
                     ForEach(routeSegments, id: \.id) { segment in
                         MapPolyline(coordinates: segment.coordinates)
-                            .stroke(segment.color, lineWidth: 4)
+                            .stroke(segment.color, lineWidth: 10)
                     }
                     
                     // Start Point

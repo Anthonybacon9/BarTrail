@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		641023B32EAE6478003C2C1B /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 641023B22EAE6478003C2C1B /* RevenueCat */; };
+		641023B52EAE6478003C2C1B /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 641023B42EAE6478003C2C1B /* RevenueCatUI */; };
 		6411BB9E2EAAEA500000DCE1 /* BarTrail.icon in Resources */ = {isa = PBXBuildFile; fileRef = 6411BB9D2EAAEA500000DCE1 /* BarTrail.icon */; };
 		6411BBED2EABF9640000DCE1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6411BBEC2EABF9640000DCE1 /* WidgetKit.framework */; };
 		6411BBEF2EABF9640000DCE1 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6411BBEE2EABF9640000DCE1 /* SwiftUI.framework */; };
@@ -63,6 +65,7 @@
 		6411BC0E2EAC00160000DCE1 /* Exceptions for "BarTrail" folder in "BarTrailWidgetsExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"BarTrail: Track Your Night Out.storekit",
 				Fonts/BBH.ttf,
 				"Fonts/BBHSansBogle-Regular.ttf",
 				"Fonts/Orbitron-Bold.ttf",
@@ -104,6 +107,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				641023B52EAE6478003C2C1B /* RevenueCatUI in Frameworks */,
+				641023B32EAE6478003C2C1B /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -170,6 +175,8 @@
 			);
 			name = BarTrail;
 			packageProductDependencies = (
+				641023B22EAE6478003C2C1B /* RevenueCat */,
+				641023B42EAE6478003C2C1B /* RevenueCatUI */,
 			);
 			productName = BarTrail;
 			productReference = 6411BB522EAACCB90000DCE1 /* BarTrail.app */;
@@ -221,9 +228,15 @@
 			knownRegions = (
 				en,
 				Base,
+				fr,
+				de,
+				es,
 			);
 			mainGroup = 6411BB492EAACCB90000DCE1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				641023B12EAE6478003C2C1B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6411BB532EAACCB90000DCE1 /* Products */;
 			projectDirPath = "";
@@ -339,6 +352,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -396,6 +410,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -429,7 +444,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = AnthonyBacon.BarTrail;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -476,7 +491,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = AnthonyBacon.BarTrail;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -595,6 +610,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		641023B12EAE6478003C2C1B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.44.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		641023B22EAE6478003C2C1B /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 641023B12EAE6478003C2C1B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		641023B42EAE6478003C2C1B /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 641023B12EAE6478003C2C1B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 6411BB4A2EAACCB90000DCE1 /* Project object */;
 }

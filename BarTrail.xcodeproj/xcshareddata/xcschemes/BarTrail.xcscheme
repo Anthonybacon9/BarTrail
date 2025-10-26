@@ -50,6 +50,9 @@
             ReferencedContainer = "container:BarTrail.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <StoreKitConfigurationFileReference
+         identifier = "../../BarTrail/BarTrail: Track Your Night Out.storekit">
+      </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

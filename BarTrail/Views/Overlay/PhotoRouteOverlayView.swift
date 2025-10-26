@@ -1,10 +1,3 @@
-//
-//  PhotoRouteOverlayView.swift
-//  BarTrail
-//
-//  Created by Anthony Bacon on 25/10/2025.
-//
-
 import SwiftUI
 import PhotosUI
 
@@ -43,7 +36,6 @@ struct PhotoRouteOverlayView: View {
         }
     }
     
-    // Track the view size for proper coordinate conversion
     @State private var viewSize: CGSize = .zero
     
     var body: some View {
@@ -54,16 +46,13 @@ struct PhotoRouteOverlayView: View {
                         let baseImageAspect = (selectedImage?.size.width ?? 1) / (selectedImage?.size.height ?? 1)
                         let viewAspect = geometry.size.width / geometry.size.height
                         
-                        // Calculate actual display size of the base image
                         let actualDisplaySize: CGSize = {
                             if baseImageAspect > viewAspect {
-                                // Image is wider - constrained by width
                                 return CGSize(
                                     width: geometry.size.width,
                                     height: geometry.size.width / baseImageAspect
                                 )
                             } else {
-                                // Image is taller - constrained by height
                                 return CGSize(
                                     width: geometry.size.height * baseImageAspect,
                                     height: geometry.size.height
@@ -72,13 +61,11 @@ struct PhotoRouteOverlayView: View {
                         }()
                         
                         ZStack {
-                            // Base photo
                             Image(uiImage: baseImage)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: actualDisplaySize.width, height: actualDisplaySize.height)
                             
-                            // Route overlay - MUST match the same display size
                             if let overlay = routeOverlay {
                                 Image(uiImage: overlay)
                                     .resizable()
@@ -106,7 +93,7 @@ struct PhotoRouteOverlayView: View {
                         }
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .onAppear {
-                            viewSize = actualDisplaySize  // Store the actual display size, not geometry size
+                            viewSize = actualDisplaySize
                         }
                         .onChange(of: geometry.size) { _, _ in
                             let newDisplaySize: CGSize
@@ -126,14 +113,12 @@ struct PhotoRouteOverlayView: View {
                     }
                     .ignoresSafeArea()
                     
-                    // Controls overlay
                     VStack {
                         Spacer()
                         controlsPanel()
                             .padding()
                     }
                     
-                    // Loading overlay
                     if isGeneratingComposite {
                         Color.black.opacity(0.7)
                             .ignoresSafeArea()
@@ -148,7 +133,6 @@ struct PhotoRouteOverlayView: View {
                         }
                     }
                 } else {
-                    // Photo picker UI
                     photoPickerView()
                 }
             }
@@ -187,7 +171,7 @@ struct PhotoRouteOverlayView: View {
         }
     }
     
-    // MARK: - Generate Composite (FIXED VERSION)
+    // MARK: - Generate Composite
     
     private func generateAndShareComposite() {
         guard let baseImage = selectedImage,
@@ -198,29 +182,23 @@ struct PhotoRouteOverlayView: View {
         DispatchQueue.global(qos: .userInitiated).async {
             let imageSize = baseImage.size
             
-            // Calculate how the overlay fits within viewSize (aspect fit)
             let overlayAspect = overlay.size.width / overlay.size.height
             let viewAspect = viewSize.width / viewSize.height
             
             var overlayDisplaySize = viewSize
             if overlayAspect > viewAspect {
-                // Overlay is wider - constrained by width
                 overlayDisplaySize.height = viewSize.width / overlayAspect
             } else {
-                // Overlay is taller or square - constrained by height
                 overlayDisplaySize.width = viewSize.height * overlayAspect
             }
             
-            // Calculate scaling factor from overlay's display size to its actual size
             let overlayScaleFactor = overlay.size.width / overlayDisplaySize.width
             
-            // Convert view offset to overlay image offset
             let overlayImageOffset = CGSize(
                 width: overlayOffset.width * overlayScaleFactor,
                 height: overlayOffset.height * overlayScaleFactor
             )
             
-            // Scale the overlay to match the composite
             let baseScaleFactor = imageSize.width / viewSize.width
             let finalOverlaySize = CGSize(
                 width: overlay.size.width * overlayScale * baseScaleFactor / overlayScaleFactor,
@@ -229,26 +207,21 @@ struct PhotoRouteOverlayView: View {
             
             let renderer = UIGraphicsImageRenderer(size: imageSize)
                     
-                    let composite = renderer.image { context in
-                        // Draw base image
-                        baseImage.draw(in: CGRect(origin: .zero, size: imageSize))
-                        
-                        // Calculate overlay position
-                        let overlayOrigin = CGPoint(
-                            x: (imageSize.width - finalOverlaySize.width) / 2 + (overlayImageOffset.width * baseScaleFactor),
-                            y: (imageSize.height - finalOverlaySize.height) / 2 + (overlayImageOffset.height * baseScaleFactor)
-                        )
-                        
-                        let overlayRect = CGRect(origin: overlayOrigin, size: finalOverlaySize)
-                        
-                        // Draw overlay with opacity
-                        overlay.draw(in: overlayRect, blendMode: .normal, alpha: overlayOpacity)
-                        
-                        // ADD WATERMARK HERE
-                        drawWatermark(in: context, size: imageSize)
-                    }
+            let composite = renderer.image { context in
+                baseImage.draw(in: CGRect(origin: .zero, size: imageSize))
+                
+                let overlayOrigin = CGPoint(
+                    x: (imageSize.width - finalOverlaySize.width) / 2 + (overlayImageOffset.width * baseScaleFactor),
+                    y: (imageSize.height - finalOverlaySize.height) / 2 + (overlayImageOffset.height * baseScaleFactor)
+                )
+                
+                let overlayRect = CGRect(origin: overlayOrigin, size: finalOverlaySize)
+                
+                overlay.draw(in: overlayRect, blendMode: .normal, alpha: overlayOpacity)
+                
+                drawWatermark(in: context, size: imageSize)
+            }
             
-            // Save to photo library directly
             UIImageWriteToSavedPhotosAlbum(composite, nil, nil, nil)
             
             DispatchQueue.main.async {
@@ -259,6 +232,7 @@ struct PhotoRouteOverlayView: View {
             }
         }
     }
+    
     // MARK: - Watermark Methods
 
     private func drawWatermark(in context: UIGraphicsImageRendererContext, size: CGSize) {
@@ -302,7 +276,6 @@ struct PhotoRouteOverlayView: View {
     @ViewBuilder
     private func controlsPanel() -> some View {
         VStack(spacing: 16) {
-            // Opacity control
             HStack {
                 Image(systemName: "opacity")
                     .foregroundColor(.white)
@@ -313,7 +286,6 @@ struct PhotoRouteOverlayView: View {
                     .frame(width: 50)
             }
             
-            // Scale control
             HStack {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                     .foregroundColor(.white)
@@ -324,7 +296,6 @@ struct PhotoRouteOverlayView: View {
                     .frame(width: 50)
             }
             
-            // Action Buttons
             HStack(spacing: 12) {
                 Button {
                     withAnimation {
@@ -385,15 +356,13 @@ struct PhotoRouteOverlayView: View {
                         .font(.headline)
                         .foregroundColor(.white)
                         .padding()
-                        .glassEffect(.regular.tint(.blue/*.opacity(0.5)*/))
-                    //                    .background(Color.blue)
+                        .glassEffect(.regular.tint(.blue))
                         .cornerRadius(12)
                 } else {
                     Label("Choose Photo", systemImage: "photo.on.rectangle")
                         .font(.headline)
                         .foregroundColor(.white)
                         .padding()
-//                        .glassEffect()
                         .background(Color.blue)
                         .cornerRadius(12)
                 }
@@ -405,11 +374,11 @@ struct PhotoRouteOverlayView: View {
         .padding()
     }
     
-    // MARK: - Generate Route Overlay
+    // MARK: - Generate Route Overlay (FIXED)
     
     private func generateRouteOverlay() {
         DispatchQueue.global(qos: .userInitiated).async {
-            // Generate with white outline for better visibility on photos
+            // FIXED: Pass dwellPlaceNames to respect manual selections
             if let overlay = RouteOverlayGenerator.shared.generateRouteWithOutline(
                 from: session,
                 placeNames: dwellPlaceNames
@@ -421,7 +390,7 @@ struct PhotoRouteOverlayView: View {
         }
     }
     
-    // MARK: - Load Photo (UPDATED)
+    // MARK: - Load Photo
     
     private func loadPhoto(from item: PhotosPickerItem?) {
         guard let item = item else { return }
@@ -431,21 +400,28 @@ struct PhotoRouteOverlayView: View {
                let image = UIImage(data: data) {
                 await MainActor.run {
                     self.selectedImage = image
-                    // Clear the selected photo to allow picking again if needed
                     self.selectedPhoto = nil
                 }
             }
         }
     }
     
-    // MARK: - Load Place Names
+    // MARK: - Load Place Names (FIXED TO RESPECT MANUAL SELECTIONS)
 
     private func loadPlaceNames() {
         Task {
             for dwell in session.dwells {
-                if let placeName = await GeocodingService.shared.getBestVenueName(for: dwell.location) {
+                // FIXED: Use displayName which respects manual override
+                if let displayName = dwell.displayName {
                     await MainActor.run {
-                        dwellPlaceNames[dwell.id] = placeName
+                        dwellPlaceNames[dwell.id] = displayName
+                    }
+                } else {
+                    // Only fetch if no name exists at all
+                    if let placeName = await GeocodingService.shared.getBestVenueName(for: dwell.location) {
+                        await MainActor.run {
+                            dwellPlaceNames[dwell.id] = placeName
+                        }
                     }
                 }
             }

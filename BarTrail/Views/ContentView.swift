@@ -54,6 +54,8 @@ struct ContentView: View {
     @State private var showCelebration = false
     @State private var isTitleAnimating = true
     
+    @State private var showingRatingSheet = false
+    
     var body: some View {
         TabView(selection: $selectedTab) {
             // Home Tab
@@ -166,6 +168,15 @@ struct ContentView: View {
             .sheet(isPresented: $showingSummary) {
                 if let session = sessionManager.currentSession {
                     MapSummaryView(session: session)
+                }
+            }
+            .sheet(isPresented: $showingRatingSheet) {
+                if let session = sessionManager.currentSession {
+                    NightRatingSheet(session: session) { rating in
+                        session.setRating(rating)
+                        SessionStorage.shared.saveSession(session)
+                        print("⭐ Night rated: \(rating) stars")
+                    }
                 }
             }
         }
@@ -358,8 +369,8 @@ struct ContentView: View {
     private func handleMainAction() {
         if sessionManager.isTracking {
             sessionManager.stopNight()
-            // Optionally show celebration when stopping too
-            // showCelebration = true
+            // Show rating sheet after stopping
+            showingRatingSheet = true
         } else {
             let status = sessionManager.authorizationStatus
             
@@ -369,12 +380,10 @@ struct ContentView: View {
                 showingPermissionAlert = true
             } else {
                 sessionManager.startNight()
-                // Show celebration when starting the night
                 withAnimation(.easeIn(duration: 0.3)) {
                     showCelebration = true
                 }
                 
-                // Auto-hide after celebration duration
                 DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
                     withAnimation(.easeOut(duration: 0.5)) {
                         showCelebration = false

@@ -10,9 +10,12 @@ import MapKit
 
 struct HistoryView: View {
     @StateObject private var storage = SessionStorage.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
     @State private var selectedSession: NightSession?
     @State private var showingDeleteAlert = false
     @State private var sessionToDelete: NightSession?
+    @State private var showingHeatmap = false
+    @State private var showUpgrade = false
     
     var body: some View {
         NavigationView {
@@ -22,6 +25,9 @@ struct HistoryView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 16) {
+                            // Premium Heatmap Button
+                            heatmapButton()
+                            
                             // Weekly Streak Card
                             weeklyStreakCard()
                             
@@ -74,8 +80,14 @@ struct HistoryView: View {
                     }
                 }
             }
+            .fullScreenCover(isPresented: $showUpgrade) {
+                PremiumUpgradeSheet()
+            }
             .sheet(item: $selectedSession) { session in
                 MapSummaryView(session: session)
+            }
+            .fullScreenCover(isPresented: $showingHeatmap) {
+                HeatmapView()
             }
             .alert("Delete Session?", isPresented: $showingDeleteAlert) {
                 Button("Cancel", role: .cancel) {
@@ -97,6 +109,134 @@ struct HistoryView: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Heatmap Button
+    
+    @ViewBuilder
+    private func heatmapButton() -> some View {
+        Button {
+            if revenueCatManager.isSubscribed {  // This should work
+                        showingHeatmap = true
+                    } else {
+                        showUpgrade = true  // This should trigger the upgrade sheet
+                    }
+        } label: {
+            HStack(spacing: 16) {
+                ZStack {
+                    // Animated gradient background
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [.purple, .orange, .red],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 70, height: 70)
+                    
+                    Image(systemName: "map.fill")
+                        .font(.system(size: 30))
+                        .foregroundColor(.white)
+                        .shadow(radius: 2)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text("View Heatmap")
+                            .font(.headline)
+                        
+                        // Premium badge
+                        HStack(spacing: 2) {
+                            Image(systemName: "sparkles")
+                                .font(.caption2)
+                            Text("PREMIUM")
+                                .font(.caption2.bold())
+                        }
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(.orange.opacity(0.2))
+                        )
+                    }
+                    
+                    Text("See your most visited spots")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                        Text("\(getHotSpotsCount()) hot spots from \(storage.sessions.count) nights")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.purple.opacity(0.5), .orange.opacity(0.5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Helper for Hot Spots Count
+    
+    private func getHotSpotsCount() -> Int {
+        let allDwells = storage.sessions.flatMap { $0.dwells }
+        guard !allDwells.isEmpty else { return 0 }
+        
+        var clusters: [[DwellPoint]] = []
+        var processedDwells: Set<UUID> = []
+        
+        for dwell in allDwells {
+            guard !processedDwells.contains(dwell.id) else { continue }
+            
+            var cluster: [DwellPoint] = [dwell]
+            processedDwells.insert(dwell.id)
+            
+            for otherDwell in allDwells {
+                guard !processedDwells.contains(otherDwell.id) else { continue }
+                
+                let distance = CLLocation(
+                    latitude: dwell.location.latitude,
+                    longitude: dwell.location.longitude
+                ).distance(from: CLLocation(
+                    latitude: otherDwell.location.latitude,
+                    longitude: otherDwell.location.longitude
+                ))
+                
+                if distance <= 75 { // Medium cluster radius
+                    cluster.append(otherDwell)
+                    processedDwells.insert(otherDwell.id)
+                }
+            }
+            
+            clusters.append(cluster)
+        }
+        
+        // Hot spots are clusters with 3+ visits
+        return clusters.filter { $0.count >= 3 }.count
     }
     
     // MARK: - Empty State
@@ -350,7 +490,18 @@ struct SessionHistoryCard: View {
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)
+                if let rating = session.rating {
+                    HStack(spacing: 2) {
+                        ForEach(1...5, id: \.self) { star in
+                            Image(systemName: star <= rating ? "star.fill" : "star")
+                                .font(.caption)
+                                .foregroundColor(star <= rating ? .yellow : .gray.opacity(0.3))
+                        }
+                    }
+                }
             }
+            
+            
             
             Spacer()
             

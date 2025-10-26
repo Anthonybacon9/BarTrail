@@ -31,6 +31,10 @@ struct MapSummaryView: View {
     
     @StateObject private var mapStyleManager = MapStyleManager.shared
     
+    // NEW: For venue editing
+    @State private var showingVenueSelector = false
+    @State private var editingDwell: DwellPoint?
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -82,15 +86,23 @@ struct MapSummaryView: View {
                                     } label: {
                                         ZStack {
                                             Circle()
-                                                .fill(.purple)
+                                                .fill(dwell.isManuallySet ? .blue : .purple)
                                                 .frame(width: 30, height: 30)
-                                            Image(systemName: "mappin.circle.fill")
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 16))
+                                            
+                                            // Show pencil icon if manually set
+                                            if dwell.isManuallySet {
+                                                Image(systemName: "pencil.circle.fill")
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 16))
+                                            } else {
+                                                Image(systemName: "mappin.circle.fill")
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 16))
+                                            }
                                         }
                                     }
                                     
-                                    // Place name below marker - force refresh on change
+                                    // Place name below marker
                                     if let placeName = dwellPlaceNames[dwell.id] {
                                         Text(placeName)
                                             .font(.caption.bold())
@@ -107,7 +119,7 @@ struct MapSummaryView: View {
                             }
                         }
                     }
-                    .mapStyle(mapStyleManager.getMapStyle())  // Changed from .mapStyle(.imagery(elevation: .realistic))
+                    .mapStyle(mapStyleManager.getMapStyle())
                     .onAppear {
                         updateMapRegion()
                         loadPlaceNames()
@@ -141,22 +153,6 @@ struct MapSummaryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        captureScreenshot()
-                    } label: {
-                        Image(systemName: "camera.fill")
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        updateMapRegion()
-                    } label: {
-                        Image(systemName: "location.fill")
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
                             showingShareSheet = true
@@ -171,15 +167,15 @@ struct MapSummaryView: View {
                         }
                         
                         Button {
-                                generateTransparentOverlay()
-                            } label: {
-                                if isGeneratingOverlay {
-                                    Label("Generating Overlay...", systemImage: "arrow.down.circle")
-                                } else {
-                                    Label("Download Route Overlay", systemImage: "arrow.down.circle")
-                                }
+                            generateTransparentOverlay()
+                        } label: {
+                            if isGeneratingOverlay {
+                                Label("Generating Overlay...", systemImage: "arrow.down.circle")
+                            } else {
+                                Label("Download Route Overlay", systemImage: "arrow.down.circle")
                             }
-                            .disabled(isGeneratingOverlay)
+                        }
+                        .disabled(isGeneratingOverlay)
                         
                         if session.route.count > 1 {
                             NavigationLink {
@@ -225,7 +221,6 @@ struct MapSummaryView: View {
                     TransparentOverlayShareView(image: overlayImage)
                         .presentationDetents([.medium])
                 } else {
-                    // Fallback loading view
                     VStack(spacing: 20) {
                         ProgressView()
                             .scaleEffect(1.5)
@@ -235,7 +230,65 @@ struct MapSummaryView: View {
                     .presentationDetents([.medium])
                 }
             }
+            // NEW: Venue selector sheet
+            .sheet(isPresented: $showingVenueSelector) {
+                if let editingDwell = editingDwell {
+                    VenueSelectorSheet(
+                        dwell: editingDwell,
+                        selectedVenueName: Binding(
+                            get: { editingDwell.manualPlaceName },
+                            set: { newName in
+                                updateDwellVenueName(dwellId: editingDwell.id, newName: newName)
+                            }
+                        )
+                    )
+                }
+            }
         }
+    }
+    
+    // MARK: - Update Dwell Venue Name
+    
+    private func updateDwellVenueName(dwellId: UUID, newName: String?) {
+        // Find the dwell in the session
+        guard let index = session.dwells.firstIndex(where: { $0.id == dwellId }) else {
+            return
+        }
+        
+        // Update the manual place name
+        session.dwells[index].manualPlaceName = newName
+        
+        // Update the display name in our local state
+        if let newName = newName {
+            // User selected a new name
+            dwellPlaceNames[dwellId] = newName
+        } else {
+            // User reset - go back to original auto-detected name
+            if let originalName = session.dwells[index].placeName {
+                dwellPlaceNames[dwellId] = originalName
+            } else {
+                // If no original name exists, fetch it
+                Task {
+                    if let fetchedName = await GeocodingService.shared.getBestVenueName(for: session.dwells[index].location) {
+                        await MainActor.run {
+                            dwellPlaceNames[dwellId] = fetchedName
+                            // Also save it to the dwell
+                            if let idx = session.dwells.firstIndex(where: { $0.id == dwellId }) {
+                                session.dwells[idx].placeName = fetchedName
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Save the session
+        SessionStorage.shared.saveSession(session)
+        
+        // Force UI update
+        viewModel.refresh()
+        
+        print("✅ Updated venue name for dwell \(dwellId): \(newName ?? "reset to original")")
     }
     
     // MARK: - Loading Overlay
@@ -247,7 +300,6 @@ struct MapSummaryView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 20) {
-                // Animated pulsing circle
                 ZStack {
                     Circle()
                         .stroke(Color.purple.opacity(0.3), lineWidth: 4)
@@ -306,7 +358,6 @@ struct MapSummaryView: View {
     private func gradientColor(for index: Int, total: Int) -> Color {
         let progress = Double(index) / Double(max(total - 1, 1))
         
-        // Interpolate between blue and purple
         return Color(
             red: (1 - progress) * 0.0 + progress * 0.5,
             green: (1 - progress) * 0.5 + progress * 0.0,
@@ -369,16 +420,13 @@ struct MapSummaryView: View {
     private func captureScreenshot() {
         isCapturingScreenshot = true
         
-        // Give the UI time to settle
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            // Get the main window
             guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                   let window = windowScene.windows.first else {
                 isCapturingScreenshot = false
                 return
             }
             
-            // Capture the entire screen without cropping
             let renderer = UIGraphicsImageRenderer(size: window.bounds.size)
             let image = renderer.image { context in
                 window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
@@ -468,7 +516,6 @@ struct MapSummaryView: View {
     // MARK: - Load Place Names (UPDATED)
     
     private func loadPlaceNames() {
-        // If no dwells, don't show loading
         guard !session.dwells.isEmpty else {
             isLoadingPlaceNames = false
             return
@@ -478,6 +525,12 @@ struct MapSummaryView: View {
             await withTaskGroup(of: (UUID, String?).self) { group in
                 for dwell in session.dwells {
                     group.addTask {
+                        // Use displayName if available (respects manual override)
+                        if let displayName = dwell.displayName {
+                            return (dwell.id, displayName)
+                        }
+                        
+                        // Otherwise fetch from geocoding service
                         let placeName = await GeocodingService.shared.getBestVenueName(for: dwell.location)
                         return (dwell.id, placeName)
                     }
@@ -492,7 +545,6 @@ struct MapSummaryView: View {
                             dwellPlaceNames[dwellId] = placeName
                         }
                         
-                        // Hide loading when all are done
                         if loadedCount >= session.dwells.count {
                             withAnimation(.easeOut(duration: 0.3)) {
                                 isLoadingPlaceNames = false
@@ -504,7 +556,7 @@ struct MapSummaryView: View {
         }
     }
     
-    // MARK: - Dwell Detail Overlay
+    // MARK: - Dwell Detail Overlay (UPDATED with Edit Button)
     
     @ViewBuilder
     private func dwellDetailOverlay(dwell: DwellPoint) -> some View {
@@ -515,8 +567,17 @@ struct MapSummaryView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         if let placeName = dwellPlaceNames[dwell.id] {
-                            Text(placeName)
-                                .font(.headline)
+                            HStack {
+                                Text(placeName)
+                                    .font(.headline)
+                                
+                                // Show indicator if manually set
+                                if dwell.isManuallySet {
+                                    Image(systemName: "pencil.circle.fill")
+                                        .foregroundColor(.blue)
+                                        .font(.caption)
+                                }
+                            }
                         } else {
                             Text("Stop Details")
                                 .font(.headline)
@@ -590,6 +651,28 @@ struct MapSummaryView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                }
+                
+                Divider()
+                
+                // NEW: Edit Venue Button
+                Button {
+                    editingDwell = dwell
+                    selectedDwell = nil
+                    showingVenueSelector = true
+                } label: {
+                    HStack {
+                        Image(systemName: "pencil.circle.fill")
+                        Text(dwell.isManuallySet ? "Change Venue" : "Correct Venue")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding()
+                    .background(dwell.isManuallySet ? Color.blue : Color.purple)
+                    .cornerRadius(12)
                 }
             }
             .padding()
