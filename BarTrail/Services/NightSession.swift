@@ -10,6 +10,39 @@ import SwiftUI
 import Foundation
 import CoreLocation
 
+struct DrinkCount: Codable {
+    var beer: Int = 0
+    var spirits: Int = 0
+    var cocktails: Int = 0
+    var shots: Int = 0
+    var wine: Int = 0
+    var other: Int = 0
+    
+    var total: Int {
+        beer + spirits + cocktails + shots + wine + other
+    }
+}
+
+enum DrinkType: String, CaseIterable {
+    case beer = "Beer"
+    case spirits = "Spirits"
+    case cocktails = "Cocktails"
+    case shots = "Shots"
+    case wine = "Wine"
+    case other = "Other"
+    
+    var icon: String {
+        switch self {
+        case .beer: return "🍺"
+        case .spirits: return "🥃"
+        case .cocktails: return "🍹"
+        case .shots: return "🥃"
+        case .wine: return "🍷"
+        case .other: return "🍻"
+        }
+    }
+}
+
 // MARK: - Night Session Model
 class NightSession: Codable, Identifiable, ObservableObject {
     let id: UUID
@@ -18,6 +51,7 @@ class NightSession: Codable, Identifiable, ObservableObject {
     @Published var route: [CLLocation]
     @Published var dwells: [DwellPoint]
     @Published var rating: Int? // 1-5 star rating
+    @Published var drinks: DrinkCount = DrinkCount()
     
     var isActive: Bool {
         endTime == nil
@@ -38,6 +72,17 @@ class NightSession: Codable, Identifiable, ObservableObject {
             distance += route[i].distance(from: route[i-1])
         }
         return distance
+    }
+    
+    func addDrink(type: DrinkType) {
+        switch type {
+        case .beer: drinks.beer += 1
+        case .spirits: drinks.spirits += 1
+        case .cocktails: drinks.cocktails += 1
+        case .shots: drinks.shots += 1
+        case .wine: drinks.wine += 1
+        case .other: drinks.other += 1
+        }
     }
     
     init(id: UUID = UUID(), startTime: Date = Date()) {
@@ -67,7 +112,7 @@ class NightSession: Codable, Identifiable, ObservableObject {
     
     // MARK: - Codable
     enum CodingKeys: String, CodingKey {
-        case id, startTime, endTime, route, dwells, rating
+        case id, startTime, endTime, route, dwells, rating, drinks
     }
     
     required init(from decoder: Decoder) throws {
@@ -76,6 +121,7 @@ class NightSession: Codable, Identifiable, ObservableObject {
         startTime = try container.decode(Date.self, forKey: .startTime)
         endTime = try container.decodeIfPresent(Date.self, forKey: .endTime)
         rating = try container.decodeIfPresent(Int.self, forKey: .rating)
+        drinks = try container.decodeIfPresent(DrinkCount.self, forKey: .drinks) ?? DrinkCount()
         
         // Decode route as array of coordinate dictionaries
         let routeData = try container.decode([[String: Double]].self, forKey: .route)
@@ -101,6 +147,7 @@ class NightSession: Codable, Identifiable, ObservableObject {
         try container.encode(startTime, forKey: .startTime)
         try container.encodeIfPresent(endTime, forKey: .endTime)
         try container.encodeIfPresent(rating, forKey: .rating)
+        try container.encode(drinks, forKey: .drinks)
         
         // Encode route as array of coordinate dictionaries
         let routeData = route.map { location in

@@ -137,11 +137,11 @@ class SessionManager: NSObject, ObservableObject {
         let totalDistance = calculateTotalDistance(for: session.route)
         let duration = session.duration ?? 0
         
-        // End Live Activity
         if #available(iOS 16.2, *) {
             LiveActivityManager.shared.endActivity(
                 finalDistance: session.totalDistance,
                 finalStops: session.dwells.count,
+                finalDrinks: session.drinks.total, // NEW
                 duration: duration
             )
         }
@@ -340,6 +340,7 @@ class SessionManager: NSObject, ObservableObject {
         LiveActivityManager.shared.updateActivity(
             distance: session.totalDistance,
             stops: session.dwells.count,
+            drinks: session.drinks.total, // NEW
             elapsedTime: elapsed
         )
     }

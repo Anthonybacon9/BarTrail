@@ -394,6 +394,42 @@ struct MapSummaryView: View {
                         .font(.subheadline.bold())
                 }
             }
+            if session.drinks.total > 0 {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Drinks Consumed:")
+                            .font(.subheadline.bold())
+                        Spacer()
+                        Text("\(session.drinks.total) total")
+                            .font(.subheadline.bold())
+                            .foregroundColor(.orange)
+                    }
+                    
+                    // Drink breakdown
+                    VStack(spacing: 4) {
+                        if session.drinks.beer > 0 {
+                            drinkRow(icon: "🍺", name: "Beer", count: session.drinks.beer)
+                        }
+                        if session.drinks.spirits > 0 {
+                            drinkRow(icon: "🥃", name: "Spirits", count: session.drinks.spirits)
+                        }
+                        if session.drinks.cocktails > 0 {
+                            drinkRow(icon: "🍹", name: "Cocktails", count: session.drinks.cocktails)
+                        }
+                        if session.drinks.shots > 0 {
+                            drinkRow(icon: "🥃", name: "Shots", count: session.drinks.shots)
+                        }
+                        if session.drinks.wine > 0 {
+                            drinkRow(icon: "🍷", name: "Wine", count: session.drinks.wine)
+                        }
+                        if session.drinks.other > 0 {
+                            drinkRow(icon: "🍻", name: "Other", count: session.drinks.other)
+                        }
+                    }
+                }
+            }
         }
         .padding()
         .background(.ultraThinMaterial)
@@ -435,6 +471,19 @@ struct MapSummaryView: View {
             self.screenshotImage = image
             self.isCapturingScreenshot = false
             self.showingScreenshotSheet = true
+        }
+    }
+    
+    @ViewBuilder
+    private func drinkRow(icon: String, name: String, count: Int) -> some View {
+        HStack {
+            Text(icon)
+            Text(name)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text("\(count)")
+                .font(.caption.bold())
         }
     }
     

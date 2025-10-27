@@ -53,8 +53,9 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @State private var showCelebration = false
     @State private var isTitleAnimating = true
-    
     @State private var showingRatingSheet = false
+    
+    @State private var updateTimer: Timer?
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -95,64 +96,34 @@ struct ContentView: View {
     private func homeView() -> some View {
         NavigationView {
             ZStack {
-                // Background gradient
-                LinearGradient(
-                    colors: [Color.barTrailPrimary.opacity(0.3), Color.barTrailSecondary.opacity(0.3)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                // Clean white/system background (Strava style)
+                Color(UIColor.systemBackground)
+                    .ignoresSafeArea()
                 
                 if showCelebration {
                     TemporaryFireworks(duration: 4.0)
-                        .allowsHitTesting(false) // Allow taps to pass through
+                        .allowsHitTesting(false)
                         .transition(.opacity)
                         .ignoresSafeArea()
                 }
                 
-                VStack(spacing: 24) {
-                    // Top status bar (like "Location: Always ✓")
+                VStack(spacing: 0) {
+                    // Top status bar
                     authorizationStatusView()
                         .padding(.top, 20)
+                        .padding(.horizontal)
                     
-                    Spacer()
-                    
-                    
-                    
-                    // Status Display
                     if sessionManager.isTracking, let session = sessionManager.currentSession {
-                        sessionStatusCard(session: session)
+                        // LIVE TRACKING VIEW (Strava style)
+                        stravaStyleLiveTracking(session: session)
                     } else if let lastSession = sessionManager.currentSession, !lastSession.isActive {
-                        completedSessionCard(session: lastSession)
+                        // COMPLETED SESSION
+                        stravaStyleCompletedSession(session: lastSession)
                     } else {
-                        VStack(spacing: 8) {
-                            Text(sessionManager.isTracking ? "Night in Progress" : "\(readyPhrases.randomElement() ?? "Ready to Track")")
-                                .font(Font.custom("Poppins-Bold", size: 32))
-                                .foregroundStyle(
-                                    LinearGradient(colors: [Color.barTrailPrimary, Color.barTrailSecondary],
-                                                   startPoint: .leading, endPoint: .trailing)
-                                )
-                                .multilineTextAlignment(.center) // Center align when wrapped
-                                .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion
-                                .lineLimit(1) // Optional: Limit to 2 lines max
-                                .minimumScaleFactor(0.5) // Optional: Scale down if needed
-                                .frame(width: 300)
-                            
-                            Text(sessionManager.isTracking ? "Tracking your route..." : "Hit start to begin your night 🍻")
-                                .font(Font.custom("Poppins-Light", size: 14))
-                                .foregroundColor(.secondary)
-                        }
+                        // READY TO START
+                        stravaStyleReadyView()
                     }
-                    
-                    Spacer()
-                    
-                    // Main Button (huge & curved, like NRC Start Run)
-                    actionButton()
-                        .padding(.horizontal, 32)
-                    //                        .padding(.bottom, 24)
-                    
                 }
-                .padding(.vertical)
             }
             .navigationBarHidden(true)
             .alert("Location Permission Required", isPresented: $showingPermissionAlert) {
@@ -179,59 +150,599 @@ struct ContentView: View {
                     }
                 }
             }
+            .onAppear {
+                startLiveUpdates()
+            }
+            .onDisappear {
+                stopLiveUpdates()
+            }
         }
     }
     
-    // MARK: - Status Cards
+    @ViewBuilder
+    private func stravaStyleLiveTracking(session: NightSession) -> some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                // Hero stat - Duration (big and bold)
+                VStack(spacing: 4) {
+                    Text(formatDuration(session.duration ?? 0))
+                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.barTrailPrimary, Color.barTrailSecondary],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                    
+                    Text("Duration")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(1)
+                }
+                .padding(.top, 40)
+                .padding(.bottom, 32)
+                
+                // Stats Grid (Strava-style)
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 24) {
+                    statBox(
+                        value: formatDistance(session.totalDistance),
+                        label: "Distance",
+                        icon: "figure.walk",
+                        color: .blue
+                    )
+                    
+                    statBox(
+                        value: "\(session.dwells.count)",
+                        label: "Stops",
+                        icon: "mappin.circle.fill",
+                        color: .purple
+                    )
+                    
+                    statBox(
+                        value: "\(session.route.count)",
+                        label: "Locations",
+                        icon: "location.fill",
+                        color: .green
+                    )
+                    
+                    statBox(
+                        value: "\(session.drinks.total)",
+                        label: "Drinks",
+                        icon: "🍺",
+                        color: .orange,
+                        isEmoji: true
+                    )
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
+                
+                // Divider
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.2))
+                    .frame(height: 1)
+                    .padding(.horizontal, 24)
+                
+                // Drink Counter Section
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.orange)
+                        Text("Add Drinks")
+                            .font(.headline)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
+                    
+                    stravaStyleDrinkButtons(session: session)
+                        .padding(.horizontal, 24)
+                }
+                .padding(.bottom, 100) // Space for button
+            }
+        }
+        .overlay(alignment: .bottom) {
+                BarTrail.actionButton(action: handleMainAction, color: .red, color2: nil, text: "✋ Finish Night", img: nil)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+        }
+    }
     
     @ViewBuilder
-    private func sessionStatusCard(session: NightSession) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "location.fill")
-                .font(.system(size: 50))
-                .foregroundColor(.green)
-                .symbolEffect(.pulse)
-            
-            Text("Night in Progress")
-                .font(.title2.bold())
-            
-            VStack(spacing: 8) {
-                HStack {
-                    Text("Started:")
-                    Spacer()
-                    Text(session.startTime, style: .time)
+    private func stravaStyleCompletedSession(session: NightSession) -> some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                // Celebration Header
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.green, .teal],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .symbolEffect(.bounce, value: session.endTime)
+                    
+                    Text("Night Complete!")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                    
+                    Text(formatTimeRange(start: session.startTime, end: session.endTime ?? Date()))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-                HStack {
-                    Text("Duration:")
-                    Spacer()
-                    if let duration = session.duration {
-                        Text(formatDuration(duration))
+                .padding(.top, 40)
+                
+                // Stats Summary
+                VStack(spacing: 16) {
+                    summaryStatRow(
+                        icon: "clock.fill",
+                        label: "Duration",
+                        value: formatDuration(session.duration ?? 0),
+                        color: .blue
+                    )
+                    
+                    summaryStatRow(
+                        icon: "figure.walk",
+                        label: "Distance",
+                        value: formatDistance(session.totalDistance),
+                        color: .green
+                    )
+                    
+                    summaryStatRow(
+                        icon: "mappin.circle.fill",
+                        label: "Stops",
+                        value: "\(session.dwells.count) locations",
+                        color: .purple
+                    )
+                    
+                    if session.drinks.total > 0 {
+                        summaryStatRow(
+                            icon: "wineglass.fill",
+                            label: "Drinks",
+                            value: "\(session.drinks.total) total",
+                            color: .orange
+                        )
                     }
                 }
-                HStack {
-                    Text("Distance:")
-                    Spacer()
-                    Text(formatDistance(session.totalDistance))
+                .padding(.horizontal, 24)
+                
+                // Action Buttons
+                VStack(spacing: 12) {
+                    BarTrail.actionButton(action: showMapEnable, color: .green, color2: nil, text: "Show Summary", img: nil)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 16)
+                    
+                    BarTrail.actionButton(action: handleMainAction, color: Color.barTrailPrimary, color2: nil, text: "Start New Session 🫡", img: nil)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 16)
                 }
-                HStack {
-                    Text("Locations:")
-                    Spacer()
-                    Text("\(session.route.count)")
-                }
-                HStack {
-                    Text("Stops:")
-                    Spacer()
-                    Text("\(session.dwells.count)")
-                }
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
             }
-            .font(.subheadline)
-            .padding()
-            .background(Color.white.opacity(0.1))
-            .cornerRadius(12)
+        }
+    }
+    
+    @ViewBuilder
+    private func stravaStyleReadyView() -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: 24) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.barTrailPrimary.opacity(0.2),
+                                    Color.barTrailSecondary.opacity(0.2)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                    
+                    Image(systemName: "moon.stars.fill")
+                        .font(.system(size: 50))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.barTrailPrimary, Color.barTrailSecondary],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                
+                // Fun title (keeping your personality)
+                Text(readyPhrases.randomElement() ?? "Ready to Track")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.barTrailPrimary, Color.barTrailSecondary],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .padding(.horizontal, 32)
+                
+                Text("Track your night out, see your route, and remember the good times")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 48)
+            }
+            
+            Spacer()
+            
+            // Start Button
+            BarTrail.actionButton(action: handleMainAction, color: Color.barTrailPrimary, color2: nil, text: "\(startPhrases.randomElement() ?? "Start")", img: nil)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+        }
+    }
+    
+    @ViewBuilder
+    private func statBox(value: String, label: String, icon: String, color: Color, isEmoji: Bool = false) -> some View {
+        VStack(spacing: 12) {
+            if isEmoji {
+                Text(icon)
+                    .font(.system(size: 32))
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 32))
+                    .foregroundColor(color)
+            }
+            
+            Text(value)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
+            
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .tracking(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(16)
+    }
+
+    @ViewBuilder
+    private func summaryStatRow(icon: String, label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+                .frame(width: 32)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                
+                Text(value)
+                    .font(.headline)
+            }
+            
+            Spacer()
         }
         .padding()
-        .frame(maxWidth: .infinity)
-        .cornerRadius(20)
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(12)
+    }
+
+    @ViewBuilder
+    private func stravaStyleDrinkButtons(session: NightSession) -> some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible()),
+            GridItem(.flexible()),
+            GridItem(.flexible())
+        ], spacing: 12) {
+            ForEach(DrinkType.allCases, id: \.self) { drinkType in
+                stravaStyleDrinkButton(for: drinkType, session: session)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stravaStyleDrinkButton(for type: DrinkType, session: NightSession) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                session.addDrink(type: type)
+                SessionStorage.shared.saveSession(session)
+            }
+            
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+        } label: {
+            VStack(spacing: 8) {
+                // Icon with badge
+                ZStack(alignment: .topTrailing) {
+                    Text(type.icon)
+                        .font(.system(size: 32))
+                    
+                    if getDrinkCount(for: type, session: session) > 0 {
+                        Text("\(getDrinkCount(for: type, session: session))")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(minWidth: 20, minHeight: 20)
+                            .background(Color.orange)
+                            .clipShape(Circle())
+                            .offset(x: 8, y: -8)
+                    }
+                }
+                
+                Text(type.rawValue)
+                    .font(.caption.bold())
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(
+                        getDrinkCount(for: type, session: session) > 0 ? Color.orange : Color.clear,
+                        lineWidth: 2
+                    )
+            )
+        }
+    }
+
+    
+//    @ViewBuilder
+//    private func homeView() -> some View {
+//        NavigationView {
+//            ZStack {
+//                // Background gradient
+//                LinearGradient(
+//                    colors: [Color.barTrailPrimary.opacity(0.3), Color.barTrailSecondary.opacity(0.3)],
+//                    startPoint: .topLeading,
+//                    endPoint: .bottomTrailing
+//                )
+//                .ignoresSafeArea()
+//                
+//                if showCelebration {
+//                    TemporaryFireworks(duration: 4.0)
+//                        .allowsHitTesting(false) // Allow taps to pass through
+//                        .transition(.opacity)
+//                        .ignoresSafeArea()
+//                }
+//                
+//                VStack(spacing: 24) {
+//                    // Top status bar (like "Location: Always ✓")
+//                    authorizationStatusView()
+//                        .padding(.top, 20)
+//                    
+//                    Spacer()
+//                    
+//                    
+//                    
+//                    // Status Display
+//                    if sessionManager.isTracking, let session = sessionManager.currentSession {
+//                        sessionStatusCard(session: session)
+//                    } else if let lastSession = sessionManager.currentSession, !lastSession.isActive {
+//                        completedSessionCard(session: lastSession)
+//                    } else {
+//                        VStack(spacing: 8) {
+//                            Text(sessionManager.isTracking ? "Night in Progress" : "\(readyPhrases.randomElement() ?? "Ready to Track")")
+//                                .font(Font.custom("Poppins-Bold", size: 32))
+//                                .foregroundStyle(
+//                                    LinearGradient(colors: [Color.barTrailPrimary, Color.barTrailSecondary],
+//                                                   startPoint: .leading, endPoint: .trailing)
+//                                )
+//                                .multilineTextAlignment(.center) // Center align when wrapped
+//                                .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion
+//                                .lineLimit(1) // Optional: Limit to 2 lines max
+//                                .minimumScaleFactor(0.5) // Optional: Scale down if needed
+//                                .frame(width: 300)
+//                            
+//                            Text(sessionManager.isTracking ? "Tracking your route..." : "Hit start to begin your night 🍻")
+//                                .font(Font.custom("Poppins-Light", size: 14))
+//                                .foregroundColor(.secondary)
+//                        }
+//                    }
+//                    
+//                    Spacer()
+//                    
+//                    // Main Button (huge & curved, like NRC Start Run)
+//                    actionButton()
+//                        .padding(.horizontal, 32)
+//                    //                        .padding(.bottom, 24)
+//                    
+//                }
+//                .padding(.vertical)
+//            }
+//            .navigationBarHidden(true)
+//            .alert("Location Permission Required", isPresented: $showingPermissionAlert) {
+//                Button("Open Settings") {
+//                    if let url = URL(string: UIApplication.openSettingsURLString) {
+//                        UIApplication.shared.open(url)
+//                    }
+//                }
+//                Button("Cancel", role: .cancel) { }
+//            } message: {
+//                Text("BarTrail needs 'Always' location access to track your night in the background. Please enable it in Settings.")
+//            }
+//            .sheet(isPresented: $showingSummary) {
+//                if let session = sessionManager.currentSession {
+//                    MapSummaryView(session: session)
+//                }
+//            }
+//            .sheet(isPresented: $showingRatingSheet) {
+//                if let session = sessionManager.currentSession {
+//                    NightRatingSheet(session: session) { rating in
+//                        session.setRating(rating)
+//                        SessionStorage.shared.saveSession(session)
+//                        print("⭐ Night rated: \(rating) stars")
+//                    }
+//                }
+//            }
+//            .onAppear {
+//                startLiveUpdates()
+//            }
+//            .onDisappear {
+//                stopLiveUpdates()
+//            }
+//        }
+//    }
+    
+    // MARK: - Status Cards
+    
+//    @ViewBuilder
+//    private func sessionStatusCard(session: NightSession) -> some View {
+//        VStack(spacing: 16) {
+//            Image(systemName: "location.fill")
+//                .font(.system(size: 50))
+//                .foregroundColor(.green)
+//                .symbolEffect(.pulse)
+//            
+//            Text("Night in Progress")
+//                .font(.title2.bold())
+//            
+//            VStack(spacing: 8) {
+//                HStack {
+//                    Text("Started:")
+//                    Spacer()
+//                    Text(session.startTime, style: .time)
+//                }
+//                HStack {
+//                    Text("Duration:")
+//                    Spacer()
+//                    if let duration = session.duration {
+//                        Text(formatDuration(duration))
+//                    }
+//                }
+//                HStack {
+//                    Text("Distance:")
+//                    Spacer()
+//                    Text(formatDistance(session.totalDistance))
+//                }
+//                HStack {
+//                    Text("Stops:")
+//                    Spacer()
+//                    Text("\(session.dwells.count)")
+//                }
+//                
+//                // NEW: Total drinks count
+//                if session.drinks.total > 0 {
+//                    HStack {
+//                        Text("Drinks:")
+//                        Spacer()
+//                        Text("\(session.drinks.total)")
+//                            .foregroundColor(.orange)
+//                    }
+//                }
+//            }
+//            .font(.subheadline)
+//            .padding()
+//            .background(Color.white.opacity(0.1))
+//            .cornerRadius(12)
+//            
+//            // NEW: Drink counter buttons
+//            drinkCounterButtons(session: session)
+//        }
+//        .padding()
+//        .frame(maxWidth: .infinity)
+//        .cornerRadius(20)
+//    }
+
+    // NEW: Add this function after sessionStatusCard
+    @ViewBuilder
+    private func drinkCounterButtons(session: NightSession) -> some View {
+        VStack(spacing: 12) {
+            Text("Add Drinks")
+                .font(.caption.bold())
+                .foregroundColor(.secondary)
+            
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
+                ForEach(DrinkType.allCases, id: \.self) { drinkType in
+                    drinkButton(for: drinkType, session: session)
+                }
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    // NEW: Add this function after drinkCounterButtons
+    @ViewBuilder
+    private func drinkButton(for type: DrinkType, session: NightSession) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                session.addDrink(type: type)
+                SessionStorage.shared.saveSession(session) // Save immediately
+            }
+            
+            // Haptic feedback
+            let impact = UIImpactFeedbackGenerator(style: .medium)
+            impact.impactOccurred()
+        } label: {
+            VStack(spacing: 4) {
+                Text(type.icon)
+                    .font(.title2)
+                
+                Text(type.rawValue)
+                    .font(.caption2.bold())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                
+                // Count badge
+                if getDrinkCount(for: type, session: session) > 0 {
+                    Text("\(getDrinkCount(for: type, session: session))")
+                        .font(.caption2.bold())
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange)
+                        .cornerRadius(8)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(Color.white.opacity(0.15))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+
+    // NEW: Helper function to get drink count
+    private func getDrinkCount(for type: DrinkType, session: NightSession) -> Int {
+        switch type {
+        case .beer: return session.drinks.beer
+        case .spirits: return session.drinks.spirits
+        case .cocktails: return session.drinks.cocktails
+        case .shots: return session.drinks.shots
+        case .wine: return session.drinks.wine
+        case .other: return session.drinks.other
+        }
+    }
+    
+    
+    private func formatTimeRange(start: Date, end: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return "\(formatter.string(from: start)) - \(formatter.string(from: end))"
     }
     
     @ViewBuilder
@@ -283,6 +794,14 @@ struct ContentView: View {
                     Spacer()
                     Text("\(session.dwells.count)")
                 }
+                if session.drinks.total > 0 {
+                    HStack {
+                        Text("Drinks:")
+                        Spacer()
+                        Text("\(session.drinks.total)")
+                            .foregroundColor(.orange)
+                    }
+                }
             }
             .font(.subheadline)
             .padding()
@@ -313,23 +832,30 @@ struct ContentView: View {
     
     // MARK: - Action Button
     
-    @ViewBuilder
-    private func actionButton() -> some View {
-        if sessionManager.isTracking {
-            // Stop Night button
-            BarTrail.actionButton(action: handleMainAction, color: Color.red, color2: nil, text: "Stop Night", img: nil)
-        } else if let session = sessionManager.currentSession, !session.isActive {
-            // View Map + Start New Night buttons
-            VStack(spacing: 12) {
-                BarTrail.actionButton(action: showMapEnable, color: Color.teal, color2: nil, text: "Show Map 🗺️", img: nil)
-                
-                BarTrail.actionButton(action: handleMainAction, color: Color.barTrailSecondary, color2: nil, text: "Start New Night 🥳", img: nil)
-            }
-        } else {
-            // Start Night button
-            BarTrail.actionButton(action: handleMainAction, color: Color.barTrailPrimary, color2: nil, text: "\(startPhrases.randomElement() ?? "Start")", img: nil)
-        }
-    }
+//    @ViewBuilder
+//    private func actionButton() -> some View {
+//        if sessionManager.isTracking {
+//            // Stop Night button
+//            BarTrail.actionButton(action: handleMainAction, color: Color.red, color2: nil, text: "Stop Night", img: nil)
+//        } else if let session = sessionManager.currentSession, !session.isActive {
+//            // View Map + Start New Night buttons
+//            VStack() {
+//                if #available(iOS 26.0, *) {
+//                    GlassEffectContainer {
+//                        BarTrail.actionButton(action: showMapEnable, color: Color.teal, color2: nil, text: "Show Map 🗺️", img: nil)
+//                        
+//                        BarTrail.actionButton(action: handleMainAction, color: Color.barTrailSecondary, color2: nil, text: "Start New Night 🥳", img: nil)
+//                    }
+//                } else {
+//                    BarTrail.actionButton(action: showMapEnable, color: Color.teal, color2: nil, text: "Show Map 🗺️", img: nil)
+//                    BarTrail.actionButton(action: handleMainAction, color: Color.barTrailSecondary, color2: nil, text: "Start New Night 🥳", img: nil)
+//                }
+//            }
+//        } else {
+//            // Start Night button
+//            BarTrail.actionButton(action: handleMainAction, color: Color.barTrailPrimary, color2: nil, text: "\(startPhrases.randomElement() ?? "Start")", img: nil)
+//        }
+//    }
     
     // MARK: - Authorization Status
     
@@ -369,6 +895,7 @@ struct ContentView: View {
     private func handleMainAction() {
         if sessionManager.isTracking {
             sessionManager.stopNight()
+            stopLiveUpdates() // Stop timer when night ends
             // Show rating sheet after stopping
             showingRatingSheet = true
         } else {
@@ -380,6 +907,7 @@ struct ContentView: View {
                 showingPermissionAlert = true
             } else {
                 sessionManager.startNight()
+                startLiveUpdates() // Start timer when night begins
                 withAnimation(.easeIn(duration: 0.3)) {
                     showCelebration = true
                 }
@@ -416,6 +944,22 @@ struct ContentView: View {
         } else {
             return String(format: "%.0f m", distance)
         }
+    }
+    
+    private func startLiveUpdates() {
+        // Only start timer if tracking
+        guard sessionManager.isTracking else { return }
+        
+        // Update every second
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            // Force UI refresh by sending objectWillChange
+            sessionManager.objectWillChange.send()
+        }
+    }
+
+    private func stopLiveUpdates() {
+        updateTimer?.invalidate()
+        updateTimer = nil
     }
 }
 
@@ -474,7 +1018,7 @@ struct actionButton: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
-                    .glassEffect(.regular.tint(color/*.opacity(0.5)*/))
+                    .glassEffect(.regular.tint(color.opacity(0.3)))
                     .shadow(color: color.opacity(0.4), radius: 10)
                 } else {
                     HStack {

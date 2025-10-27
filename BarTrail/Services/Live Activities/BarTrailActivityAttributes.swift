@@ -5,7 +5,6 @@
 //  Created by Anthony Bacon on 24/10/2025.
 //
 
-
 import ActivityKit
 import Foundation
 import SwiftUI
@@ -19,6 +18,7 @@ struct BarTrailActivityAttributes: ActivityAttributes {
         var startTime: Date
         var currentDistance: Double // in meters
         var currentStops: Int
+        var currentDrinks: Int // NEW
         var elapsedTime: TimeInterval
         var lastUpdateTime: Date
     }
@@ -55,6 +55,7 @@ class LiveActivityManager: ObservableObject {
                 startTime: startTime,
                 currentDistance: 0,
                 currentStops: 0,
+                currentDrinks: 0,
                 elapsedTime: 0,
                 lastUpdateTime: Date()
             )
@@ -80,7 +81,7 @@ class LiveActivityManager: ObservableObject {
     
     // MARK: - Update Live Activity
     
-    func updateActivity(distance: Double, stops: Int, elapsedTime: TimeInterval) {
+    func updateActivity(distance: Double, stops: Int, drinks: Int, elapsedTime: TimeInterval) {
         guard let activity = currentActivity else {
             print("⚠️ No active Live Activity to update")
             return
@@ -91,6 +92,7 @@ class LiveActivityManager: ObservableObject {
                 startTime: activity.content.state.startTime,
                 currentDistance: distance,
                 currentStops: stops,
+                currentDrinks: drinks,
                 elapsedTime: elapsedTime,
                 lastUpdateTime: Date()
             )
@@ -102,13 +104,13 @@ class LiveActivityManager: ObservableObject {
                 )
             )
             
-            print("📱 Live Activity updated: \(formatDistance(distance)), \(stops) stops, \(formatDuration(elapsedTime))")
+            print("📱 Live Activity updated: \(formatDistance(distance)), \(stops) stops, \(drinks) drinks, \(formatDuration(elapsedTime))")
         }
     }
     
-    // MARK: - End Live Activity
+    // MARK: - End Live Activity (UPDATED - immediately dismisses)
     
-    func endActivity(finalDistance: Double, finalStops: Int, duration: TimeInterval) {
+    func endActivity(finalDistance: Double, finalStops: Int, finalDrinks: Int, duration: TimeInterval) {
         guard let activity = currentActivity else {
             print("⚠️ No active Live Activity to end")
             return
@@ -119,21 +121,22 @@ class LiveActivityManager: ObservableObject {
                 startTime: activity.content.state.startTime,
                 currentDistance: finalDistance,
                 currentStops: finalStops,
+                currentDrinks: finalDrinks,
                 elapsedTime: duration,
                 lastUpdateTime: Date()
             )
             
-            // End with final content (stays visible for a few seconds)
+            // End immediately after showing final state
             await activity.end(
                 ActivityContent(
                     state: finalState,
                     staleDate: nil
                 ),
-                dismissalPolicy: .default
+                dismissalPolicy: .immediate // CHANGED: Dismisses right away
             )
             
             currentActivity = nil
-            print("🛑 Live Activity ended")
+            print("🛑 Live Activity ended and dismissed")
         }
     }
     
