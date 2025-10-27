@@ -159,8 +159,15 @@ class NotificationManager: NSObject, ObservableObject {
         notificationCenter.removeAllDeliveredNotifications()
         notificationCenter.removeAllPendingNotificationRequests()
         
+        notificationCenter.setBadgeCount(0) { error in
+            if let error = error {
+                print("❌ Failed to clear badge: \(error.localizedDescription)")
+            }
+        }
+        
         // Reset badge
         UNUserNotificationCenter.current().setBadgeCount(0)
+        
     }
 }
 

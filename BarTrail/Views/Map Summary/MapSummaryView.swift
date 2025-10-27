@@ -526,7 +526,7 @@ struct MapSummaryView: View {
                 for dwell in session.dwells {
                     group.addTask {
                         // Use displayName if available (respects manual override)
-                        if let displayName = dwell.displayName {
+                        if let displayName = await dwell.displayName {
                             return (dwell.id, displayName)
                         }
                         

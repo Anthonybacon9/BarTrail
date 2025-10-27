@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import MapKit
+import CoreLocation
 
 class GeocodingService {
     static let shared = GeocodingService()

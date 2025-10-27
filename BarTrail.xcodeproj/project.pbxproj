@@ -9,10 +9,10 @@
 /* Begin PBXBuildFile section */
 		641023B32EAE6478003C2C1B /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 641023B22EAE6478003C2C1B /* RevenueCat */; };
 		641023B52EAE6478003C2C1B /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 641023B42EAE6478003C2C1B /* RevenueCatUI */; };
-		6411BB9E2EAAEA500000DCE1 /* BarTrail.icon in Resources */ = {isa = PBXBuildFile; fileRef = 6411BB9D2EAAEA500000DCE1 /* BarTrail.icon */; };
 		6411BBED2EABF9640000DCE1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6411BBEC2EABF9640000DCE1 /* WidgetKit.framework */; };
 		6411BBEF2EABF9640000DCE1 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6411BBEE2EABF9640000DCE1 /* SwiftUI.framework */; };
 		6411BC002EABF9650000DCE1 /* BarTrailWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6411BBEA2EABF9640000DCE1 /* BarTrailWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		64AA73AE2EAFFBBE00C28E9B /* BarTrail.icon in Resources */ = {isa = PBXBuildFile; fileRef = 64AA73AD2EAFFBBE00C28E9B /* BarTrail.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,10 +41,10 @@
 
 /* Begin PBXFileReference section */
 		6411BB522EAACCB90000DCE1 /* BarTrail.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BarTrail.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		6411BB9D2EAAEA500000DCE1 /* BarTrail.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = BarTrail.icon; sourceTree = "<group>"; };
 		6411BBEA2EABF9640000DCE1 /* BarTrailWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BarTrailWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6411BBEC2EABF9640000DCE1 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		6411BBEE2EABF9640000DCE1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		64AA73AD2EAFFBBE00C28E9B /* BarTrail.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = BarTrail.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -131,7 +131,7 @@
 				6411BBF02EABF9640000DCE1 /* BarTrailWidgets */,
 				6411BBEB2EABF9640000DCE1 /* Frameworks */,
 				6411BB532EAACCB90000DCE1 /* Products */,
-				6411BB9D2EAAEA500000DCE1 /* BarTrail.icon */,
+				64AA73AD2EAFFBBE00C28E9B /* BarTrail.icon */,
 			);
 			sourceTree = "<group>";
 		};
@@ -253,7 +253,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6411BB9E2EAAEA500000DCE1 /* BarTrail.icon in Resources */,
+				64AA73AE2EAFFBBE00C28E9B /* BarTrail.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -422,7 +422,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 3YFY9R2QJ5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -469,7 +469,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 3YFY9R2QJ5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
