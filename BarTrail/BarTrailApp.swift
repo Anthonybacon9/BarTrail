@@ -10,7 +10,7 @@ import RevenueCat
 
 @main
 struct BarTrailApp: App {
-    @State private var isOnboardingComplete = false
+    @AppStorage("isOnboardingComplete") private var isOnboardingComplete = false
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     
 //    init() {

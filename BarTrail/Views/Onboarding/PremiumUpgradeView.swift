@@ -282,14 +282,14 @@ struct PremiumUpgradeView: View {
                     }
                     .padding(.bottom, 8)
                     
-                    // Fine print
-                    Text("Free: Tracking, Live Activities, last 10 sessions.\nPremium: Unlimited history, creative tools. Cancel anytime.")
-                        .font(Font.custom("Poppins-Regular", size: 10))
-                        .foregroundColor(.secondary.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                        .padding(.bottom, 20)
-                        .opacity(isAnimating ? 1 : 0)
+//                    // Fine print
+//                    Text("Free: Tracking, Live Activities, last 10 sessions.\nPremium: Unlimited history, creative tools. Cancel anytime.")
+//                        .font(Font.custom("Poppins-Regular", size: 10))
+//                        .foregroundColor(.secondary.opacity(0.7))
+//                        .multilineTextAlignment(.center)
+//                        .padding(.horizontal, 32)
+//                        .padding(.bottom, 20)
+//                        .opacity(isAnimating ? 1 : 0)
                 }
             }
         }
@@ -540,16 +540,15 @@ struct PremiumUpgradeSheet: View {
                             .font(Font.custom("Poppins-Regular", size: 13))
                             .foregroundColor(.secondary)
                     }
-                    .padding(.bottom, 8)
                     
-                    // Fine print
-                    Text("Free: Tracking, Live Activities, last 10 sessions.\nPremium: Unlimited history, creative tools. Cancel anytime.")
-                        .font(Font.custom("Poppins-Regular", size: 10))
-                        .foregroundColor(.secondary.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                        .padding(.bottom, 20)
-                        .opacity(isAnimating ? 1 : 0)
+//                    // Fine print
+//                    Text("Free: Tracking, Live Activities, last 10 sessions.\nPremium: Unlimited history, creative tools. Cancel anytime.")
+//                        .font(Font.custom("Poppins-Regular", size: 10))
+//                        .foregroundColor(.secondary.opacity(0.7))
+//                        .multilineTextAlignment(.center)
+//                        .padding(.horizontal, 32)
+//                        .padding(.bottom, 20)
+//                        .opacity(isAnimating ? 1 : 0)
                 }
             }
         }

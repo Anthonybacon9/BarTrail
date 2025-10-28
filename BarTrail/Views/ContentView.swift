@@ -161,7 +161,7 @@ struct ContentView: View {
     
     @ViewBuilder
     private func stravaStyleLiveTracking(session: NightSession) -> some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 // Hero stat - Duration (big and bold)
                 VStack(spacing: 4) {
@@ -254,7 +254,7 @@ struct ContentView: View {
     
     @ViewBuilder
     private func stravaStyleCompletedSession(session: NightSession) -> some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
                 // Celebration Header
                 VStack(spacing: 12) {
@@ -391,30 +391,56 @@ struct ContentView: View {
     
     @ViewBuilder
     private func statBox(value: String, label: String, icon: String, color: Color, isEmoji: Bool = false) -> some View {
-        VStack(spacing: 12) {
-            if isEmoji {
-                Text(icon)
-                    .font(.system(size: 32))
-            } else {
-                Image(systemName: icon)
-                    .font(.system(size: 32))
-                    .foregroundColor(color)
+        if #available(iOS 26.0, *) {
+            VStack(spacing: 12) {
+                if isEmoji {
+                    Text(icon)
+                        .font(.system(size: 32))
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 32))
+                        .foregroundColor(color)
+                }
+                
+                Text(value)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                
+                Text(label)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(1)
             }
-            
-            Text(value)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
-            
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
-                .tracking(1)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
+            .glassEffect(.regular.tint(.barTrailPrimary.opacity(0.3)), in: .rect(cornerRadius: 16))
+        } else {
+            VStack(spacing: 12) {
+                if isEmoji {
+                    Text(icon)
+                        .font(.system(size: 32))
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 32))
+                        .foregroundColor(color)
+                }
+                
+                Text(value)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                
+                Text(label)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(16)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(16)
     }
 
     @ViewBuilder

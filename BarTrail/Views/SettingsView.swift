@@ -12,6 +12,8 @@ struct SettingsView: View {
     @StateObject private var autoStopManager = AutoStopManager.shared
     @StateObject private var storage = SessionStorage.shared
     @StateObject private var mapStyleManager = MapStyleManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
+    @AppStorage("isOnboardingComplete") private var isOnboardingComplete = false
     @State private var showingClearDataAlert = false
     @State private var showingFeedbackSheet = false
     @State private var showingImportPicker = false
@@ -19,6 +21,10 @@ struct SettingsView: View {
     @State private var showingImportError = false
     @State private var importErrorMessage = ""
     @State private var importedSessionDate = ""
+    @State private var showingRestoreSuccess = false
+    @State private var showingRestoreError = false
+    @State private var restoreErrorMessage = ""
+    @State private var isRestoring = false
     
     var body: some View {
         NavigationView {
@@ -100,13 +106,17 @@ struct SettingsView: View {
                     Button {
                         showingImportPicker = true
                     } label: {
-                        Label("Import Session", systemImage: "square.and.arrow.down")
+                        Label("Import Session", systemImage: "square.and.arrow.up")
                     }
                     
                     Button(role: .destructive) {
                         showingClearDataAlert = true
                     } label: {
-                        Text("Clear All History")
+                        HStack {
+                            Spacer()
+                            Text("Clear All History")
+                            Spacer()
+                        }
                     }
                 } header: {
                     Text("Data")
@@ -152,6 +162,52 @@ struct SettingsView: View {
                     Text("Share your ideas, report issues, or let us know what you think!")
                 }
                 
+                Section {
+                    Button {
+                        isOnboardingComplete = false
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("Reset Onboarding")
+                            Spacer()
+                        } 
+                    }
+                    
+                    Button() {
+                        isRestoring = true
+                        revenueCatManager.restorePurchases { success, error in
+                            isRestoring = false
+                            
+                            if success {
+                                showingRestoreSuccess = true
+                            } else if let error = error {
+                                restoreErrorMessage = error.localizedDescription
+                                showingRestoreError = true
+                            } else {
+                                restoreErrorMessage = "No active subscriptions found."
+                                showingRestoreError = true
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isRestoring {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                            } else {
+                                Text("Restore Purchases")
+                                    .foregroundStyle(.blue)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(isRestoring)
+                } header: {
+                    Text("Onboarding")
+                } footer: {
+                    Text("Onboarding will be reset upon app restart")
+                }
+                
                 // About
                 Section {
                     HStack {
@@ -182,6 +238,16 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(importErrorMessage)
+            }
+            .alert("Purchases Restored", isPresented: $showingRestoreSuccess) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Your premium subscription has been restored successfully!")
+            }
+            .alert("Restore Failed", isPresented: $showingRestoreError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(restoreErrorMessage)
             }
             .sheet(isPresented: $showingFeedbackSheet) {
                 FeedbackView()

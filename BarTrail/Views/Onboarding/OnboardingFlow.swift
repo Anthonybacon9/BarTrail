@@ -92,21 +92,40 @@ struct OnboardingPagesView: View {
                 // Custom page indicators
                 HStack(spacing: 8) {
                     ForEach(0..<pages.count, id: \.self) { index in
-                        Capsule()
-                            .fill(currentPage == index ?
-                                  LinearGradient(
-                                    colors: [Color.barTrailPrimary, Color.barTrailSecondary],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                  ) :
-                                    LinearGradient(
-                                        colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
+                        if #available(iOS 26.0, *) {
+                            Capsule()
+                                .fill(currentPage == index ?
+                                      LinearGradient(
+                                        colors: [Color.barTrailPrimary, Color.barTrailSecondary],
                                         startPoint: .leading,
                                         endPoint: .trailing
-                                    )
-                            )
-                            .frame(width: currentPage == index ? 32 : 8, height: 8)
-                            .animation(.spring(response: 0.3), value: currentPage)
+                                      ) :
+                                        LinearGradient(
+                                            colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                )
+                                .glassEffect()
+                                .frame(width: currentPage == index ? 32 : 8, height: 8)
+                                .animation(.spring(response: 0.3), value: currentPage)
+                        } else {
+                            Capsule()
+                                .fill(currentPage == index ?
+                                      LinearGradient(
+                                        colors: [Color.barTrailPrimary, Color.barTrailSecondary],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                      ) :
+                                        LinearGradient(
+                                            colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                )
+                                .frame(width: currentPage == index ? 32 : 8, height: 8)
+                                .animation(.spring(response: 0.3), value: currentPage)
+                        }
                     }
                 }
                 .padding(.bottom, 20)
@@ -114,61 +133,78 @@ struct OnboardingPagesView: View {
                 // Action buttons
                 VStack(spacing: 12) {
                     if currentPage == pages.count - 1 {
+                        BarTrail.ContinueButton(action: goToPremium, color: Color.barTrailPrimary, color2: nil, text: "Continue", img: nil)
+                    } else {
+                        BarTrail.ContinueButton(action: nextPage, color: Color.barTrailPrimary, color2: nil, text: "Next", img: nil)
+                        
                         Button {
                             withAnimation {
                                 showPremium = true
                             }
                         } label: {
-                            Text("Continue")
-                                .font(Font.custom("Poppins-SemiBold", size: 18))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
-                                    LinearGradient(
-                                        colors: [Color.barTrailPrimary, Color.barTrailSecondary],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .cornerRadius(16)
+                            Text("Skip")
+                                .font(Font.custom("Poppins-Regular", size: 16))
+                                .foregroundColor(.secondary)
                         }
-                    } else {
-                        Button {
-                            withAnimation {
-                                currentPage += 1
-                            }
-                        } label: {
-                            Text("Next")
-                                .font(Font.custom("Poppins-SemiBold", size: 18))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
-                                    LinearGradient(
-                                        colors: [Color.barTrailPrimary, Color.barTrailSecondary],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .cornerRadius(16)
-                        }
-                        
-//                        Button {
-//                            withAnimation {
-//                                showPremium = true
-//                            }
-//                        } label: {
-//                            Text("Skip")
-//                                .font(Font.custom("Poppins-Regular", size: 16))
-//                                .foregroundColor(.secondary)
-//                        }
                     }
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
             }
         }
+    }
+    
+    private func goToPremium() {
+        withAnimation {
+            showPremium = true
+        }
+    }
+    
+    private func nextPage() {
+        withAnimation {
+            currentPage += 1
+        }
+    }
+}
+
+struct ContinueButton: View {
+    let action: () -> Void
+    let color: Color
+    let color2: Color?
+    let text: String
+    let img: String?
+    
+    var body: some View {
+        GeometryReader { geometry in
+            Button(action: action) {
+                if #available(iOS 26.0, *) {
+                    HStack {
+                        Text(text)
+                            .font(.title3.bold())
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                    .glassEffect(.regular.tint(color.opacity(0.3)), in: .rect(cornerRadius: 16))
+                    .shadow(color: color.opacity(0.4), radius: 10)
+                } else {
+                    HStack {
+                        Text(text)
+                            .font(.title3.bold())
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                    .background(
+                        LinearGradient(colors: [color, color2 ?? Color.barTrailSecondary], startPoint: .leading, endPoint: .trailing)
+                    )
+                    .shadow(color: color.opacity(0.4), radius: 10)
+                }
+            }
+            .frame(width: geometry.size.width * 0.81)
+            .frame(maxWidth: .infinity) // Center the button
+        }
+        .frame(height: 60) // Set a fixed height for GeometryReader
     }
 }
 
@@ -183,17 +219,32 @@ struct OnboardingPageView: View {
             
             // Icon with gradient background
             ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [page.accentColor.opacity(0.2), page.accentColor.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                if #available(iOS 26.0, *) {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [page.accentColor.opacity(0.2), page.accentColor.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 160, height: 160)
-                    .scaleEffect(isAnimating ? 1.0 : 0.8)
-                    .opacity(isAnimating ? 1 : 0)
+                        .glassEffect()
+                        .frame(width: 160, height: 160)
+                        .scaleEffect(isAnimating ? 1.0 : 0.8)
+                        .opacity(isAnimating ? 1 : 0)
+                } else {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [page.accentColor.opacity(0.2), page.accentColor.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 160, height: 160)
+                        .scaleEffect(isAnimating ? 1.0 : 0.8)
+                        .opacity(isAnimating ? 1 : 0)
+                }
                 
                 Image(systemName: page.imageName)
                     .font(.system(size: 70, weight: .regular))

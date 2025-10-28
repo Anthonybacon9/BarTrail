@@ -163,38 +163,38 @@ struct NightRatingSheet: View {
                 
                 // Action Buttons
                 VStack(spacing: 12) {
-                    // Save Rating Button
-                    Button {
-                        if selectedRating > 0 {
-                            onRatingComplete(selectedRating)
-                            dismiss()
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text(selectedRating > 0 ? "Save Rating" : "Select Rating")
-                                .font(.title3.bold())
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                        .background(
-                            selectedRating > 0 ?
-                            LinearGradient(
-                                colors: [Color.barTrailPrimary, Color.barTrailSecondary],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ) :
-                            LinearGradient(
-                                colors: [.gray, .gray],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(16)
-                        .shadow(color: selectedRating > 0 ? Color.barTrailPrimary.opacity(0.4) : .clear, radius: 10)
-                    }
-                    .disabled(selectedRating == 0)
+                    
+                    BarTrail.actionButton(action: saveRatingButton, color: selectedRating > 0 ? Color.barTrailPrimary : Color.gray, color2: nil, text: selectedRating > 0 ? "Save Rating" : "Select Rating", img: nil)
+                        .disabled(selectedRating == 0)
+//                    // Save Rating Button
+//                    Button {
+//                        saveRatingButton()
+//                    } label: {
+//                        HStack {
+//                            Image(systemName: "checkmark.circle.fill")
+//                            Text(selectedRating > 0 ? "Save Rating" : "Select Rating")
+//                                .font(.title3.bold())
+//                        }
+//                        .foregroundColor(.white)
+//                        .frame(maxWidth: .infinity)
+//                        .padding(.vertical, 18)
+//                        .background(
+//                            selectedRating > 0 ?
+//                            LinearGradient(
+//                                colors: [Color.barTrailPrimary, Color.barTrailSecondary],
+//                                startPoint: .leading,
+//                                endPoint: .trailing
+//                            ) :
+//                            LinearGradient(
+//                                colors: [.gray, .gray],
+//                                startPoint: .leading,
+//                                endPoint: .trailing
+//                            )
+//                        )
+//                        .cornerRadius(16)
+//                        .shadow(color: selectedRating > 0 ? Color.barTrailPrimary.opacity(0.4) : .clear, radius: 10)
+//                    }
+//                    .disabled(selectedRating == 0)
                     
                     // Skip Button
                     Button {
@@ -209,6 +209,13 @@ struct NightRatingSheet: View {
                 .padding(.horizontal, 32)
                 .padding(.bottom, 40)
             }
+        }
+    }
+    
+    private func saveRatingButton() {
+        if selectedRating > 0 {
+            onRatingComplete(selectedRating)
+            dismiss()
         }
     }
     
