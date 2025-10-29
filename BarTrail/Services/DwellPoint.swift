@@ -2,6 +2,12 @@ import Foundation
 import CoreLocation
 import Combine
 
+extension Date {
+    var year: Int {
+        return Calendar.current.component(.year, from: self)
+    }
+}
+
 // MARK: - Dwell Point Model (Updated)
 struct DwellPoint: Codable, Identifiable {
     let id: UUID
@@ -26,6 +32,21 @@ struct DwellPoint: Codable, Identifiable {
     }
     
     init(id: UUID = UUID(), location: CLLocationCoordinate2D, startTime: Date, endTime: Date) {
+        // Validate dates are reasonable
+        let currentYear = Calendar.current.component(.year, from: Date())
+        
+        guard startTime < endTime else {
+            fatalError("DwellPoint: startTime must be before endTime")
+        }
+        
+        guard startTime.year <= currentYear + 1 && endTime.year <= currentYear + 1 else {
+            fatalError("DwellPoint: dates are too far in the future")
+        }
+        
+        guard startTime.year >= 2020 else {
+            fatalError("DwellPoint: dates are too far in the past")
+        }
+        
         self.id = id
         self.location = location
         self.startTime = startTime

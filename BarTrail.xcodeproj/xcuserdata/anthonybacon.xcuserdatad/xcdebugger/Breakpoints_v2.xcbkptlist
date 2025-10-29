@@ -16,36 +16,6 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "811"
             endingLineNumber = "811">
-            <Locations>
-               <Location
-                  uuid = "A7C8E1CF-5DEE-4D1C-B7A0-CAE4CEB4B982 - 8ba16580fc56ea9c"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "BarTrail.DetailedStatsView.calculateMostVisitedArea() -&gt; (visits: Swift.Int, name: Swift.String)"
-                  moduleName = "BarTrail.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/anthonybacon/Coding/BarTrail/BarTrail/Views/History/DetailedStatsView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "772"
-                  endingLineNumber = "772">
-               </Location>
-               <Location
-                  uuid = "A7C8E1CF-5DEE-4D1C-B7A0-CAE4CEB4B982 - bee793f49657435"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "BarTrail.DetailedStatsView.formatDistance(Swift.Double) -&gt; Swift.String"
-                  moduleName = "BarTrail.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/anthonybacon/Coding/BarTrail/BarTrail/Views/History/DetailedStatsView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "773"
-                  endingLineNumber = "773">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
