@@ -173,6 +173,16 @@ struct SettingsView: View {
                         } 
                     }
                     
+                    Button {
+                        revenueCatManager.isSubscribed = false
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("Reset Premium")
+                            Spacer()
+                        }
+                    }
+                    
                     Button() {
                         isRestoring = true
                         revenueCatManager.restorePurchases { success, error in

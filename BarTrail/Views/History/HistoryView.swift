@@ -16,6 +16,9 @@ struct HistoryView: View {
     @State private var sessionToDelete: NightSession?
     @State private var showingHeatmap = false
     @State private var showUpgrade = false
+    @State private var showDetailedStats = false
+    
+    private let freeHistoryLimit = 10
     
     var body: some View {
         NavigationView {
@@ -28,34 +31,51 @@ struct HistoryView: View {
                             // Premium Heatmap Button
                             heatmapButton()
                             
+                            // Detailed Stats Button
+                            detailedStatsButton()
+                            
                             // Weekly Streak Card
                             weeklyStreakCard()
                             
                             // Weekly Stats Card
                             weeklyStatsCard()
                             
-                            // All Time Stats Card
-                            allTimeStatsCard()
+//                            // All Time Stats Card
+//                            allTimeStatsCard()
                             
                             // Sessions List
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Your Nights")
-                                    .font(.title2.bold())
-                                    .padding(.horizontal)
+                                HStack {
+                                    Text("Your Nights")
+                                        .font(.title2.bold())
+                                    
+                                    if storage.sessions.count > freeHistoryLimit && !revenueCatManager.isSubscribed {
+                                        Spacer()
+                                        Text("\(freeHistoryLimit)/\(storage.sessions.count) visible")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding(.horizontal)
                                 
-                                ForEach(storage.sessions) { session in
-                                    SessionHistoryCard(session: session)
-                                        .onTapGesture {
-                                            selectedSession = session
-                                        }
-                                        .contextMenu {
-                                            Button(role: .destructive) {
-                                                sessionToDelete = session
-                                                showingDeleteAlert = true
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
+                                ForEach(Array(storage.sessions.enumerated()), id: \.element.id) { index, session in
+                                    if index < freeHistoryLimit || revenueCatManager.isSubscribed {
+                                        SessionHistoryCard(session: session)
+                                            .onTapGesture {
+                                                selectedSession = session
                                             }
-                                        }
+                                            .contextMenu {
+                                                Button(role: .destructive) {
+                                                    sessionToDelete = session
+                                                    showingDeleteAlert = true
+                                                } label: {
+                                                    Label("Delete", systemImage: "trash")
+                                                }
+                                            }
+                                    } else if index == freeHistoryLimit {
+                                        // Premium gate card
+                                        premiumGateCard(hiddenCount: storage.sessions.count - freeHistoryLimit)
+                                    }
                                 }
                             }
                             .padding(.vertical)
@@ -89,6 +109,9 @@ struct HistoryView: View {
             .fullScreenCover(isPresented: $showingHeatmap) {
                 HeatmapView()
             }
+            .sheet(isPresented: $showDetailedStats) {
+                DetailedStatsView()
+            }
             .alert("Delete Session?", isPresented: $showingDeleteAlert) {
                 Button("Cancel", role: .cancel) {
                     sessionToDelete = nil
@@ -111,20 +134,169 @@ struct HistoryView: View {
         }
     }
     
+    // MARK: - Premium Gate Card
+    
+    @ViewBuilder
+    private func premiumGateCard(hiddenCount: Int) -> some View {
+        Button {
+            showUpgrade = true
+        } label: {
+            VStack(spacing: 12) {
+                HStack(spacing: 16) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                LinearGradient(
+                                    colors: [.purple, .orange],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 60, height: 60)
+                        
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.caption)
+                            Text("PREMIUM")
+                                .font(.caption.bold())
+                        }
+                        .foregroundColor(.orange)
+                        
+                        Text("\(hiddenCount) more night\(hiddenCount == 1 ? "" : "s") hidden")
+                            .font(.headline)
+                        
+                        Text("Upgrade to view unlimited history")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                }
+                
+                Divider()
+                
+                HStack {
+                    Image(systemName: "infinity")
+                        .foregroundColor(.purple)
+                    Text("Unlimited history access")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Text("£1.66/month")
+                        .font(.caption.bold())
+                        .foregroundColor(.green)
+                }
+            }
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.purple.opacity(0.5), .orange.opacity(0.5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Heatmap Button
+    
+    @ViewBuilder
+    private func detailedStatsButton() -> some View {
+        Button {
+            showDetailedStats = true
+        } label: {
+            HStack(spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [.blue, .cyan],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 70, height: 70)
+                    
+                    Image(systemName: "chart.bar.xaxis")
+                        .font(.system(size: 30))
+                        .foregroundColor(.white)
+                        .shadow(radius: 2)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Detailed Stats")
+                        .font(.headline)
+                    
+                    Text("Deep dive into your night analytics")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                        Text("Premium insights inside")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.blue.opacity(0.5), .cyan.opacity(0.5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+    }
+    
     // MARK: - Heatmap Button
     
     @ViewBuilder
     private func heatmapButton() -> some View {
         Button {
-            if revenueCatManager.isSubscribed {  // This should work
-                        showingHeatmap = true
-                    } else {
-                        showUpgrade = true  // This should trigger the upgrade sheet
-                    }
+            if revenueCatManager.isSubscribed {
+                showingHeatmap = true
+            } else {
+                showUpgrade = true
+            }
         } label: {
             HStack(spacing: 16) {
                 ZStack {
-                    // Animated gradient background
                     RoundedRectangle(cornerRadius: 16)
                         .fill(
                             LinearGradient(
@@ -146,7 +318,6 @@ struct HistoryView: View {
                         Text("View Heatmap")
                             .font(.headline)
                         
-                        // Premium badge
                         HStack(spacing: 2) {
                             Image(systemName: "sparkles")
                                 .font(.caption2)
@@ -226,7 +397,7 @@ struct HistoryView: View {
                     longitude: otherDwell.location.longitude
                 ))
                 
-                if distance <= 75 { // Medium cluster radius
+                if distance <= 75 {
                     cluster.append(otherDwell)
                     processedDwells.insert(otherDwell.id)
                 }
@@ -235,7 +406,6 @@ struct HistoryView: View {
             clusters.append(cluster)
         }
         
-        // Hot spots are clusters with 3+ visits
         return clusters.filter { $0.count >= 3 }.count
     }
     
@@ -456,7 +626,6 @@ struct SessionHistoryCard: View {
     
     var body: some View {
         HStack(spacing: 16) {
-            // Mini Map Preview (placeholder)
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(LinearGradient(colors: [.blue.opacity(0.3), .purple.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -475,7 +644,6 @@ struct SessionHistoryCard: View {
                 }
             }
             
-            // Session Info
             VStack(alignment: .leading, spacing: 6) {
                 Text(session.startTime, style: .date)
                     .font(.headline)
@@ -490,6 +658,7 @@ struct SessionHistoryCard: View {
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)
+                
                 if let rating = session.rating {
                     HStack(spacing: 2) {
                         ForEach(1...5, id: \.self) { star in
@@ -500,8 +669,6 @@ struct SessionHistoryCard: View {
                     }
                 }
             }
-            
-            
             
             Spacer()
             

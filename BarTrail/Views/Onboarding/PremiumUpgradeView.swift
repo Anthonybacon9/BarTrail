@@ -47,7 +47,10 @@ struct PremiumUpgradeView: View {
     @State private var selectedPlan: PricingPlan = .yearly
     @State private var isAnimating = false
     
-    @EnvironmentObject var revenueCatManager: RevenueCatManager
+    // COMMENTED OUT: RevenueCat integration until approval
+    // @EnvironmentObject var revenueCatManager: RevenueCatManager
+    @State private var customerInfo: CustomerInfo?
+    @State private var isPro: Bool = false
     @State private var isPurchasing = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -56,30 +59,36 @@ struct PremiumUpgradeView: View {
         case monthly, yearly
         
         var price: String {
-            // We'll handle this in the view where we have access to the EnvironmentObject
             switch self {
-            case .monthly: return "£2.99" // Fallback
-            case .yearly: return "£19.99" // Fallback
+            case .monthly: return "£2.99"
+            case .yearly: return "£19.99"
             }
         }
         
-        func getPrice(from revenueCatManager: RevenueCatManager) -> String {
-            guard let offering = revenueCatManager.currentOffering else {
-                // Fallback prices
-                return self == .yearly ? "£19.99" : "£2.99"
-            }
-            
-            let package = self == .yearly ?
-                offering.package(identifier: "annual") :
-                offering.package(identifier: "monthly")
-            
-            return package?.storeProduct.localizedPriceString ?? (self == .yearly ? "£19.99" : "£2.99")
-        }
+        // COMMENTED OUT: RevenueCat price fetching
+        // func getPrice(from revenueCatManager: RevenueCatManager) -> String {
+        //     guard let offering = revenueCatManager.currentOffering else {
+        //         return self == .yearly ? "£19.99" : "£2.99"
+        //     }
+        //
+        //     let package = self == .yearly ?
+        //         offering.package(identifier: "annual") :
+        //         offering.package(identifier: "monthly")
+        //
+        //     return package?.storeProduct.localizedPriceString ?? (self == .yearly ? "£19.99" : "£2.99")
+        // }
         
         var period: String {
             switch self {
             case .monthly: return "month"
             case .yearly: return "year"
+            }
+        }
+        
+        var productID: String {
+            switch self {
+            case .monthly: return "AnthonyBacon.BarTrail.Monthly"
+            case .yearly: return "AnthonyBacon.BarTrail.Annual"
             }
         }
         
@@ -162,14 +171,12 @@ struct PremiumUpgradeView: View {
                         PricingCard(
                             plan: .yearly,
                             isSelected: selectedPlan == .yearly,
-                            revenueCatManager: revenueCatManager,
                             action: { selectedPlan = .yearly }
                         )
                         
                         PricingCard(
                             plan: .monthly,
                             isSelected: selectedPlan == .monthly,
-                            revenueCatManager: revenueCatManager,
                             action: { selectedPlan = .monthly }
                         )
                     }
@@ -178,34 +185,36 @@ struct PremiumUpgradeView: View {
                     
                     // CTA Button
                     Button {
-                        guard let offering = revenueCatManager.currentOffering else {
-                                errorMessage = "Unable to load products. Please try again."
-                                showError = true
-                                return
-                            }
-                            
-                            // Get the selected package
-                            let package = selectedPlan == .yearly ?
-                                offering.package(identifier: "annual") :
-                                offering.package(identifier: "monthly")
-                            
-                            guard let package = package else {
-                                errorMessage = "Selected plan not available."
-                                showError = true
-                                return
-                            }
-                            
-                            isPurchasing = true
-                            revenueCatManager.purchase(package: package) { success, error in
-                                isPurchasing = false
-                                
-                                if success {
-                                    isOnboardingComplete = true
-                                } else if let error = error {
-                                    errorMessage = error.localizedDescription
-                                    showError = true
-                                }
-                            }
+                        purchase(productID: selectedPlan.productID)
+                        
+                        // COMMENTED OUT: RevenueCat purchase flow
+                        // guard let offering = revenueCatManager.currentOffering else {
+                        //     errorMessage = "Unable to load products. Please try again."
+                        //     showError = true
+                        //     return
+                        // }
+                        //
+                        // let package = selectedPlan == .yearly ?
+                        //     offering.package(identifier: "Annual") :
+                        //     offering.package(identifier: "Monthly")
+                        //
+                        // guard let package = package else {
+                        //     errorMessage = "Selected plan not available."
+                        //     showError = true
+                        //     return
+                        // }
+                        //
+                        // isPurchasing = true
+                        // revenueCatManager.purchase(package: package) { success, error in
+                        //     isPurchasing = false
+                        //
+                        //     if success {
+                        //         isOnboardingComplete = true
+                        //     } else if let error = error {
+                        //         errorMessage = error.localizedDescription
+                        //         showError = true
+                        //     }
+                        // }
                     } label: {
                         if #available(iOS 26.0, *) {
                             Text(selectedPlan == .yearly ? "Start 7-Day Free Trial" : "Start Premium")
@@ -245,7 +254,7 @@ struct PremiumUpgradeView: View {
                     
                     // Trial info for yearly
                     if selectedPlan == .yearly {
-                        Text("7 days free, then \(PricingPlan.yearly.getPrice(from: revenueCatManager))/year")
+                        Text("7 days free, then \(selectedPlan.price)/year")
                             .font(Font.custom("Poppins-Regular", size: 12))
                             .foregroundColor(.secondary)
                             .opacity(isAnimating ? 1 : 0)
@@ -264,32 +273,26 @@ struct PremiumUpgradeView: View {
                     .opacity(isAnimating ? 1 : 0)
                     
                     Button {
-                        isPurchasing = true
-                        revenueCatManager.restorePurchases { success, error in
-                            isPurchasing = false
-                            
-                            if success {
-                                isOnboardingComplete = true
-                            } else if let error = error {
-                                errorMessage = error.localizedDescription
-                                showError = true
-                            }
-                        }
+                        restorePurchases()
+                        
+                        // COMMENTED OUT: RevenueCat restore
+                        // isPurchasing = true
+                        // revenueCatManager.restorePurchases { success, error in
+                        //     isPurchasing = false
+                        //
+                        //     if success {
+                        //         isOnboardingComplete = true
+                        //     } else if let error = error {
+                        //         errorMessage = error.localizedDescription
+                        //         showError = true
+                        //     }
+                        // }
                     } label: {
                         Text("Restore Purchases")
                             .font(Font.custom("Poppins-Regular", size: 13))
                             .foregroundColor(.secondary)
                     }
                     .padding(.bottom, 8)
-                    
-//                    // Fine print
-//                    Text("Free: Tracking, Live Activities, last 10 sessions.\nPremium: Unlimited history, creative tools. Cancel anytime.")
-//                        .font(Font.custom("Poppins-Regular", size: 10))
-//                        .foregroundColor(.secondary.opacity(0.7))
-//                        .multilineTextAlignment(.center)
-//                        .padding(.horizontal, 32)
-//                        .padding(.bottom, 20)
-//                        .opacity(isAnimating ? 1 : 0)
                 }
             }
         }
@@ -299,15 +302,88 @@ struct PremiumUpgradeView: View {
             }
         }
     }
+    
+    // Direct purchase function (from PremiumBuyingTest)
+    func purchase(productID: String) {
+        isPurchasing = true
+        Task {
+            do {
+                let products: [StoreProduct] = await Purchases.shared.products([productID])
+                guard let product = products.first else {
+                    print("product not found \(productID)")
+                    await MainActor.run {
+                        errorMessage = "Product not found: \(productID)"
+                        showError = true
+                        isPurchasing = false
+                    }
+                    return
+                }
+                let result = try await Purchases.shared.purchase(product: product)
+                await MainActor.run {
+                    customerInfo = result.customerInfo
+                    isPro = customerInfo?.entitlements.active
+                        .contains(where: {
+                            $0.value.isActive
+                        }) ?? false
+                    
+                    isPurchasing = false
+                    if isPro {
+                        isOnboardingComplete = true
+                    }
+                }
+            } catch {
+                print("Failed to purchase \(error)")
+                await MainActor.run {
+                    errorMessage = "Failed to purchase: \(error.localizedDescription)"
+                    showError = true
+                    isPurchasing = false
+                }
+            }
+        }
+    }
+    
+    func restorePurchases() {
+        isPurchasing = true
+        Task {
+            do {
+                let result = try await Purchases.shared.restorePurchases()
+                await MainActor.run {
+                    customerInfo = result
+                    isPro = customerInfo?.entitlements.active
+                        .contains(where: {
+                            $0.value.isActive
+                        }) ?? false
+                    
+                    isPurchasing = false
+                    if isPro {
+                        isOnboardingComplete = true
+                    } else {
+                        errorMessage = "No previous purchases found"
+                        showError = true
+                    }
+                }
+            } catch {
+                print("Failed to restore purchases \(error)")
+                await MainActor.run {
+                    errorMessage = "Failed to restore: \(error.localizedDescription)"
+                    showError = true
+                    isPurchasing = false
+                }
+            }
+        }
+    }
 }
 
-// MARK: - Premium Upgrade View
+// MARK: - Premium Upgrade Sheet
 struct PremiumUpgradeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPlan: PricingPlan = .yearly
     @State private var isAnimating = false
     
-    @EnvironmentObject var revenueCatManager: RevenueCatManager
+    // COMMENTED OUT: RevenueCat integration until approval
+    // @EnvironmentObject var revenueCatManager: RevenueCatManager
+    @State private var customerInfo: CustomerInfo?
+    @State private var isPro: Bool = false
     @State private var isPurchasing = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -316,30 +392,23 @@ struct PremiumUpgradeSheet: View {
         case monthly, yearly
         
         var price: String {
-            // We'll handle this in the view where we have access to the EnvironmentObject
             switch self {
-            case .monthly: return "£2.99" // Fallback
-            case .yearly: return "£19.99" // Fallback
+            case .monthly: return "£2.99"
+            case .yearly: return "£19.99"
             }
-        }
-        
-        func getPrice(from revenueCatManager: RevenueCatManager) -> String {
-            guard let offering = revenueCatManager.currentOffering else {
-                // Fallback prices
-                return self == .yearly ? "£19.99" : "£2.99"
-            }
-            
-            let package = self == .yearly ?
-                offering.package(identifier: "annual") :
-                offering.package(identifier: "monthly")
-            
-            return package?.storeProduct.localizedPriceString ?? (self == .yearly ? "£19.99" : "£2.99")
         }
         
         var period: String {
             switch self {
             case .monthly: return "month"
             case .yearly: return "year"
+            }
+        }
+        
+        var productID: String {
+            switch self {
+            case .monthly: return "AnthonyBacon.BarTrail.Monthly"
+            case .yearly: return "AnthonyBacon.BarTrail.Annual"
             }
         }
         
@@ -422,14 +491,12 @@ struct PremiumUpgradeSheet: View {
                         PricingCard(
                             plan: .yearly,
                             isSelected: selectedPlan == .yearly,
-                            revenueCatManager: revenueCatManager,
                             action: { selectedPlan = .yearly }
                         )
                         
                         PricingCard(
                             plan: .monthly,
                             isSelected: selectedPlan == .monthly,
-                            revenueCatManager: revenueCatManager,
                             action: { selectedPlan = .monthly }
                         )
                     }
@@ -438,34 +505,7 @@ struct PremiumUpgradeSheet: View {
                     
                     // CTA Button
                     Button {
-                        guard let offering = revenueCatManager.currentOffering else {
-                                errorMessage = "Unable to load products. Please try again."
-                                showError = true
-                                return
-                            }
-                            
-                            // Get the selected package
-                            let package = selectedPlan == .yearly ?
-                                offering.package(identifier: "annual") :
-                                offering.package(identifier: "monthly")
-                            
-                            guard let package = package else {
-                                errorMessage = "Selected plan not available."
-                                showError = true
-                                return
-                            }
-                            
-                            isPurchasing = true
-                            revenueCatManager.purchase(package: package) { success, error in
-                                isPurchasing = false
-                                
-                                if success {
-                                    dismiss()
-                                } else if let error = error {
-                                    errorMessage = error.localizedDescription
-                                    showError = true
-                                }
-                            }
+                        purchase(productID: selectedPlan.productID)
                     } label: {
                         if #available(iOS 26.0, *) {
                             Text(selectedPlan == .yearly ? "Start 7-Day Free Trial" : "Start Premium")
@@ -505,7 +545,7 @@ struct PremiumUpgradeSheet: View {
                     
                     // Trial info for yearly
                     if selectedPlan == .yearly {
-                        Text("7 days free, then \(PricingPlan.yearly.getPrice(from: revenueCatManager))/year")
+                        Text("7 days free, then \(selectedPlan.price)/year")
                             .font(Font.custom("Poppins-Regular", size: 12))
                             .foregroundColor(.secondary)
                             .opacity(isAnimating ? 1 : 0)
@@ -524,37 +564,88 @@ struct PremiumUpgradeSheet: View {
                     .opacity(isAnimating ? 1 : 0)
                     
                     Button {
-                        isPurchasing = true
-                        revenueCatManager.restorePurchases { success, error in
-                            isPurchasing = false
-                            
-                            if success {
-                                dismiss()
-                            } else if let error = error {
-                                errorMessage = error.localizedDescription
-                                showError = true
-                            }
-                        }
+                        restorePurchases()
                     } label: {
                         Text("Restore Purchases")
                             .font(Font.custom("Poppins-Regular", size: 13))
                             .foregroundColor(.secondary)
                     }
-                    
-//                    // Fine print
-//                    Text("Free: Tracking, Live Activities, last 10 sessions.\nPremium: Unlimited history, creative tools. Cancel anytime.")
-//                        .font(Font.custom("Poppins-Regular", size: 10))
-//                        .foregroundColor(.secondary.opacity(0.7))
-//                        .multilineTextAlignment(.center)
-//                        .padding(.horizontal, 32)
-//                        .padding(.bottom, 20)
-//                        .opacity(isAnimating ? 1 : 0)
                 }
             }
         }
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
                 isAnimating = true
+            }
+        }
+    }
+    
+    // Direct purchase function
+    func purchase(productID: String) {
+        isPurchasing = true
+        Task {
+            do {
+                let products: [StoreProduct] = await Purchases.shared.products([productID])
+                guard let product = products.first else {
+                    print("product not found \(productID)")
+                    await MainActor.run {
+                        errorMessage = "Product not found: \(productID)"
+                        showError = true
+                        isPurchasing = false
+                    }
+                    return
+                }
+                let result = try await Purchases.shared.purchase(product: product)
+                await MainActor.run {
+                    customerInfo = result.customerInfo
+                    isPro = customerInfo?.entitlements.active
+                        .contains(where: {
+                            $0.value.isActive
+                        }) ?? false
+                    
+                    isPurchasing = false
+                    if isPro {
+                        dismiss()
+                    }
+                }
+            } catch {
+                print("Failed to purchase \(error)")
+                await MainActor.run {
+                    errorMessage = "Failed to purchase: \(error.localizedDescription)"
+                    showError = true
+                    isPurchasing = false
+                }
+            }
+        }
+    }
+    
+    func restorePurchases() {
+        isPurchasing = true
+        Task {
+            do {
+                let result = try await Purchases.shared.restorePurchases()
+                await MainActor.run {
+                    customerInfo = result
+                    isPro = customerInfo?.entitlements.active
+                        .contains(where: {
+                            $0.value.isActive
+                        }) ?? false
+                    
+                    isPurchasing = false
+                    if isPro {
+                        dismiss()
+                    } else {
+                        errorMessage = "No previous purchases found"
+                        showError = true
+                    }
+                }
+            } catch {
+                print("Failed to restore purchases \(error)")
+                await MainActor.run {
+                    errorMessage = "Failed to restore: \(error.localizedDescription)"
+                    showError = true
+                    isPurchasing = false
+                }
             }
         }
     }
@@ -632,11 +723,10 @@ struct FeatureRow: View {
 struct PricingCard: View {
     let plan: PremiumUpgradeView.PricingPlan
     let isSelected: Bool
-    let revenueCatManager: RevenueCatManager
     let action: () -> Void
     
     var body: some View {
-        let price = plan.getPrice(from: revenueCatManager)
+        let price = plan.price
         
         if #available(iOS 26.0, *) {
             if isSelected {

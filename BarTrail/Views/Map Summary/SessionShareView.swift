@@ -32,12 +32,6 @@ struct SessionShareView: View {
                     } label: {
                         Label("Export as JSON", systemImage: "doc.text")
                     }
-                    
-                    Button {
-                        shareMapScreenshot()
-                    } label: {
-                        Label("Share Map Screenshot", systemImage: "map")
-                    }
                 }
                 
                 Section("Session Details") {
@@ -88,6 +82,7 @@ struct SessionShareView: View {
             }
             .sheet(isPresented: $showingShareSheet) {
                 ShareSheet(activityItems: shareItems)
+                    .id(UUID()) // Force sheet recreation
             }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }
@@ -139,47 +134,38 @@ struct SessionShareView: View {
         
         do {
             let jsonData = try encoder.encode(session)
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
-                // Create safe filename
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                let dateString = dateFormatter.string(from: session.startTime)
-                let fileName = "bartrail_session_\(dateString).json"
-                
-                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-                
-                try jsonString.write(to: tempURL, atomically: true, encoding: .utf8)
-                
-                shareItems = [tempURL]
-                showingShareSheet = true
+            
+            // Create filename
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd-HHmmss"
+            let dateString = dateFormatter.string(from: session.startTime)
+            let fileName = "bartrail_session_\(dateString).json"
+            
+            // Get Documents directory
+            guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                throw NSError(domain: "FileError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not access documents directory"])
             }
+            
+            let fileURL = documentsDirectory.appendingPathComponent(fileName)
+            
+            // Write file
+            try jsonData.write(to: fileURL)
+            
+            // Verify file was created
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                throw NSError(domain: "FileError", code: -2, userInfo: [NSLocalizedDescriptionKey: "File was not created successfully"])
+            }
+            
+            print("File created at: \(fileURL.path)")
+            
+            shareItems = [fileURL]
+            showingShareSheet = true
+            
         } catch {
             errorMessage = "Failed to export session data: \(error.localizedDescription)"
             showingError = true
         }
     }
-    
-    // MARK: - Share Map Screenshot
-//    private func shareMapScreenshot() {
-//        var text = "🗺️ BarTrail Route\n\n"
-//        
-//        if let first = session.route.first {
-//            text += "Start: \(String(format: "%.4f, %.4f", first.coordinate.latitude, first.coordinate.longitude))\n"
-//        }
-//        
-//        if let last = session.route.last {
-//            text += "End: \(String(format: "%.4f, %.4f", last.coordinate.latitude, last.coordinate.longitude))\n"
-//        }
-//        
-//        text += "\nView in Maps:\n"
-//        if let first = session.route.first {
-//            let mapsURL = "https://maps.apple.com/?q=\(first.coordinate.latitude),\(first.coordinate.longitude)"
-//            text += mapsURL
-//        }
-//        
-//        shareItems = [text]
-//        showingShareSheet = true
-//    }
     
     private func shareMapScreenshot() {
         // For now, direct users to use the screenshot feature from the map view

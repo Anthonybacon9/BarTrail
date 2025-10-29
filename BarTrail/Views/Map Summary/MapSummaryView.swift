@@ -8,10 +8,15 @@ struct MapSummaryView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel = MapViewModel()
     
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
+    
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var selectedDwell: DwellPoint?
     @State private var showingShareSheet = false
     @State private var dwellPlaceNames: [UUID: String] = [:]
+    
+    @State private var showUpgrade = false
+    @State private var showingDeleteAlert = false
     
     // Add these for screenshot functionality
     @State private var showingScreenshotSheet = false
@@ -25,7 +30,7 @@ struct MapSummaryView: View {
     @State private var showingTransparentOverlay = false
     @State private var transparentOverlayImage: UIImage?
     
-    // ADD THESE FOR LOADING STATE
+    // Loading state - simplified
     @State private var isLoadingPlaceNames = true
     @State private var loadedCount = 0
     
@@ -34,6 +39,9 @@ struct MapSummaryView: View {
     // NEW: For venue editing
     @State private var showingVenueSelector = false
     @State private var editingDwell: DwellPoint?
+    
+    // NEW: For recenter functionality
+    @State private var hasUserPanned = false
     
     var body: some View {
         NavigationView {
@@ -114,17 +122,63 @@ struct MapSummaryView: View {
                                                     .fill(.black.opacity(0.75))
                                             )
                                             .id(placeName) // Force re-render when name changes
+                                    } else if isLoadingPlaceNames {
+                                        // Show subtle loading indicator
+                                        ProgressView()
+                                            .scaleEffect(0.7)
+                                            .tint(.white)
+                                            .padding(6)
+                                            .background(
+                                                Capsule()
+                                                    .fill(.black.opacity(0.75))
+                                            )
                                     }
                                 }
                             }
                         }
                     }
                     .mapStyle(mapStyleManager.getMapStyle())
+                    .onMapCameraChange { context in
+                        // Detect if user has manually moved the map
+                        hasUserPanned = true
+                    }
                     .onAppear {
                         updateMapRegion()
                         loadPlaceNames()
                     }
                 }
+                
+//                // Recenter button - only show when user has panned
+//                if hasUserPanned && !session.route.isEmpty {
+//                    VStack {
+//                        HStack {
+//                            Spacer()
+//                            Button {
+//                                withAnimation(.easeInOut(duration: 0.5)) {
+//                                    updateMapRegion()
+//                                    hasUserPanned = false
+//                                }
+//                            } label: {
+//                                HStack(spacing: 6) {
+//                                    Image(systemName: "location.fill")
+//                                        .font(.system(size: 14))
+//                                    Text("Recenter")
+//                                        .font(.subheadline.bold())
+//                                }
+//                                .foregroundColor(.white)
+//                                .padding(.horizontal, 16)
+//                                .padding(.vertical, 10)
+//                                .background(.blue)
+//                                .cornerRadius(20)
+//                                .shadow(radius: 5)
+//                            }
+//                            .padding(.trailing, 16)
+//                            .padding(.top, 8)
+//                        }
+//                        Spacer()
+//                    }
+//                    .transition(.move(edge: .top).combined(with: .opacity))
+//                }
                 
                 // Summary Card at Bottom
                 VStack {
@@ -144,14 +198,49 @@ struct MapSummaryView: View {
                         .background(.clear)
                 }
                 
-                // ADD LOADING OVERLAY
-                if isLoadingPlaceNames && !session.dwells.isEmpty {
-                    loadingOverlay()
+                // Simplified loading toast - appears briefly at top
+                if isLoadingPlaceNames && !session.dwells.isEmpty && loadedCount < session.dwells.count {
+                    VStack {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(0.9)
+                                .tint(.white)
+                            
+                            Text("Loading locations...")
+                                .font(.subheadline)
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Text("\(loadedCount)/\(session.dwells.count)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(12)
+                        .shadow(radius: 5)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        
+                        Spacer()
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
-            .navigationTitle("Night Summary")
+            .navigationTitle("\(Text(session.startTime, style: .date))")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.5)) {
+                                            updateMapRegion()
+                                        }
+                                    } label: {
+                                        Image(systemName: "location.fill")
+                                    }
+                                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
@@ -167,7 +256,11 @@ struct MapSummaryView: View {
                         }
                         
                         Button {
-                            generateTransparentOverlay()
+                            if revenueCatManager.isSubscribed {
+                                generateTransparentOverlay()
+                            } else {
+                                showUpgrade = true
+                            }
                         } label: {
                             if isGeneratingOverlay {
                                 Label("Generating Overlay...", systemImage: "arrow.down.circle")
@@ -176,14 +269,12 @@ struct MapSummaryView: View {
                             }
                         }
                         .disabled(isGeneratingOverlay)
-                        
-                        if session.route.count > 1 {
-                            NavigationLink {
-                                RouteVisualizerView(session: session)
+                            Button(role: .destructive) {
+                                showingDeleteAlert = true
                             } label: {
-                                Label("Speed View", systemImage: "speedometer")
+                                Label("Delete", systemImage: "trash")
+                                    .foregroundColor(.red)
                             }
-                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -199,6 +290,9 @@ struct MapSummaryView: View {
             .sheet(isPresented: $showingShareSheet) {
                 SessionShareView(session: session)
                     .presentationDetents([.medium, .large])
+            }
+            .fullScreenCover(isPresented: $showUpgrade) {
+                PremiumUpgradeSheet()
             }
             .sheet(isPresented: $showingScreenshotSheet) {
                 if let screenshotImage = screenshotImage {
@@ -243,6 +337,15 @@ struct MapSummaryView: View {
                         )
                     )
                 }
+            }
+            .alert("Delete Session", isPresented: $showingDeleteAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    SessionStorage.shared.deleteSession(session)
+                    dismiss()
+                }
+            } message: {
+                Text("Are you sure you want to delete this session? This action cannot be undone.")
             }
         }
     }
@@ -291,54 +394,23 @@ struct MapSummaryView: View {
         print("✅ Updated venue name for dwell \(dwellId): \(newName ?? "reset to original")")
     }
     
-    // MARK: - Loading Overlay
-    
-    @ViewBuilder
-    private func loadingOverlay() -> some View {
-        ZStack {
-            Color.black.opacity(0.6)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 20) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.purple.opacity(0.3), lineWidth: 4)
-                        .frame(width: 80, height: 80)
-                    
-                    Circle()
-                        .trim(from: 0, to: 0.7)
-                        .stroke(Color.purple, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .frame(width: 80, height: 80)
-                        .rotationEffect(.degrees(-90))
-                        .rotationEffect(.degrees(isLoadingPlaceNames ? 360 : 0))
-                        .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: isLoadingPlaceNames)
-                    
-                    Image(systemName: "mappin.circle.fill")
-                        .font(.system(size: 30))
-                        .foregroundColor(.purple)
-                }
-                
-                VStack(spacing: 8) {
-                    Text("Loading Locations")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    
-                    if session.dwells.count > 0 {
-                        Text("\(loadedCount) of \(session.dwells.count)")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.8))
-                        
-                        ProgressView(value: Double(loadedCount), total: Double(session.dwells.count))
-                            .progressViewStyle(.linear)
-                            .tint(.purple)
-                            .frame(width: 200)
-                    }
-                }
-            }
-            .padding(30)
-            .background(.ultraThinMaterial)
-            .cornerRadius(20)
-            .shadow(radius: 20)
+    private func deleteSession() {
+        let alert = UIAlertController(
+            title: "Delete Session",
+            message: "Are you sure you want to delete this session? This action cannot be undone.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { _ in
+            SessionStorage.shared.deleteSession(session)
+            dismiss()
+        })
+        
+        // Present the alert
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            rootViewController.present(alert, animated: true)
         }
     }
     
@@ -562,7 +634,7 @@ struct MapSummaryView: View {
         return String(format: "%.4f, %.4f", coordinate.latitude, coordinate.longitude)
     }
     
-    // MARK: - Load Place Names (UPDATED)
+    // MARK: - Load Place Names (IMPROVED)
     
     private func loadPlaceNames() {
         guard !session.dwells.isEmpty else {
@@ -594,9 +666,13 @@ struct MapSummaryView: View {
                             dwellPlaceNames[dwellId] = placeName
                         }
                         
+                        // Auto-hide loading indicator after all loaded
                         if loadedCount >= session.dwells.count {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                isLoadingPlaceNames = false
+                            // Brief delay before hiding
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    isLoadingPlaceNames = false
+                                }
                             }
                         }
                     }

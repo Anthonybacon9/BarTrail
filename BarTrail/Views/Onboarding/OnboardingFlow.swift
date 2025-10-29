@@ -1,11 +1,16 @@
 import SwiftUI
 import RevenueCat
+import CoreLocation
+import UserNotifications
+import Combine
 
 // MARK: - Onboarding Container
 struct OnboardingFlow: View {
     @State private var currentPage = 0
     @State private var showPremium = false
     @Binding var isOnboardingComplete: Bool
+    @StateObject private var locationManager = OnboardingLocationManager()
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     
     var body: some View {
         ZStack {
@@ -18,7 +23,9 @@ struct OnboardingFlow: View {
             } else {
                 OnboardingPagesView(
                     currentPage: $currentPage,
-                    showPremium: $showPremium
+                    showPremium: $showPremium,
+                    locationManager: locationManager,
+                    notificationStatus: $notificationStatus
                 )
                 .transition(.asymmetric(
                     insertion: .move(edge: .leading),
@@ -27,6 +34,41 @@ struct OnboardingFlow: View {
             }
         }
         .animation(.easeInOut(duration: 0.4), value: showPremium)
+        .onAppear {
+            checkNotificationStatus()
+        }
+    }
+    
+    private func checkNotificationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                notificationStatus = settings.authorizationStatus
+            }
+        }
+    }
+}
+
+// MARK: - Location Manager for Onboarding
+class OnboardingLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    private let manager = CLLocationManager()
+    
+    override init() {
+        super.init()
+        manager.delegate = self
+        authorizationStatus = manager.authorizationStatus
+    }
+    
+    func requestLocationPermission() {
+        manager.requestWhenInUseAuthorization()
+    }
+    
+    func requestAlwaysAuthorization() {
+        manager.requestAlwaysAuthorization()
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
     }
 }
 
@@ -34,6 +76,8 @@ struct OnboardingFlow: View {
 struct OnboardingPagesView: View {
     @Binding var currentPage: Int
     @Binding var showPremium: Bool
+    @ObservedObject var locationManager: OnboardingLocationManager
+    @Binding var notificationStatus: UNAuthorizationStatus
     
     let pages: [OnboardingPage] = [
         OnboardingPage(
@@ -41,28 +85,48 @@ struct OnboardingPagesView: View {
             subtitle: "Your nights, mapped and remembered",
             imageName: "map.fill",
             accentColor: .barTrailPrimary,
-            description: "Never wonder 'where did we go last night?' again"
+            description: "Never wonder 'where did we go last night?' again",
+            pageType: .info
         ),
         OnboardingPage(
             title: "Own Your\nNights",
             subtitle: "Automatic memory preservation",
             imageName: "brain.head.profile",
             accentColor: .barTrailSecondary,
-            description: "BarTrail tracks your route while you focus on the fun. Wake up to a beautiful map of your adventure"
+            description: "BarTrail tracks your route while you focus on the fun. Wake up to a beautiful map of your adventure",
+            pageType: .info
         ),
         OnboardingPage(
             title: "Share Your\nStory",
             subtitle: "Story-worthy summaries",
             imageName: "photo.on.rectangle.angled",
             accentColor: .barTrailPrimary,
-            description: "Turn your nights into shareable art. Overlay routes on photos, export transparent maps, and relive the memories"
+            description: "Turn your nights into shareable art. Overlay routes on photos, export transparent maps, and relive the memories",
+            pageType: .info
+        ),
+        OnboardingPage(
+            title: "Track Your\nJourney",
+            subtitle: "Location permission required",
+            imageName: "location.fill",
+            accentColor: .barTrailPrimary,
+            description: "BarTrail needs location access to map your route and detect venues. Your data stays private and never leaves your device",
+            pageType: .location
+        ),
+        OnboardingPage(
+            title: "Stay\nInformed",
+            subtitle: "Get helpful reminders",
+            imageName: "bell.badge.fill",
+            accentColor: .barTrailSecondary,
+            description: "Receive notifications when you've been at a location for a while, when your night ends, or if tracking has been running for hours",
+            pageType: .notifications
         ),
         OnboardingPage(
             title: "Private &\nSecure",
             subtitle: "Your data stays on your device",
             imageName: "lock.shield.fill",
             accentColor: .barTrailSecondary,
-            description: "100% on-device tracking. No servers, no data collection, no tracking. Your nights are yours alone"
+            description: "100% on-device tracking. No servers, no data collection, no tracking. Your nights are yours alone",
+            pageType: .info
         )
     ]
     
@@ -83,8 +147,12 @@ struct OnboardingPagesView: View {
                 // Page content
                 TabView(selection: $currentPage) {
                     ForEach(0..<pages.count, id: \.self) { index in
-                        OnboardingPageView(page: pages[index])
-                            .tag(index)
+                        OnboardingPageView(
+                            page: pages[index],
+                            locationManager: locationManager,
+                            notificationStatus: $notificationStatus
+                        )
+                        .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
@@ -135,16 +203,45 @@ struct OnboardingPagesView: View {
                     if currentPage == pages.count - 1 {
                         BarTrail.ContinueButton(action: goToPremium, color: Color.barTrailPrimary, color2: nil, text: "Continue", img: nil)
                     } else {
-                        BarTrail.ContinueButton(action: nextPage, color: Color.barTrailPrimary, color2: nil, text: "Next", img: nil)
+                        let currentPageType = pages[currentPage].pageType
                         
-                        Button {
-                            withAnimation {
-                                showPremium = true
+                        if currentPageType == .location {
+                            if locationManager.authorizationStatus == .authorizedAlways ||
+                               locationManager.authorizationStatus == .authorizedWhenInUse {
+                                BarTrail.ContinueButton(action: nextPage, color: Color.barTrailPrimary, color2: nil, text: "Next", img: nil)
+                            } else {
+                                BarTrail.ContinueButton(action: requestLocation, color: Color.barTrailPrimary, color2: nil, text: "Enable Location", img: nil)
+                                
+                                Button(action: nextPage) {
+                                    Text("Skip")
+                                        .font(Font.custom("Poppins-Regular", size: 16))
+                                        .foregroundColor(.secondary)
+                                }
                             }
-                        } label: {
-                            Text("Skip")
-                                .font(Font.custom("Poppins-Regular", size: 16))
-                                .foregroundColor(.secondary)
+                        } else if currentPageType == .notifications {
+                            if notificationStatus == .authorized {
+                                BarTrail.ContinueButton(action: nextPage, color: Color.barTrailPrimary, color2: nil, text: "Next", img: nil)
+                            } else {
+                                BarTrail.ContinueButton(action: requestNotifications, color: Color.barTrailPrimary, color2: nil, text: "Enable Notifications", img: nil)
+                                
+                                Button(action: nextPage) {
+                                    Text("Skip")
+                                        .font(Font.custom("Poppins-Regular", size: 16))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        } else {
+                            BarTrail.ContinueButton(action: nextPage, color: Color.barTrailPrimary, color2: nil, text: "Next", img: nil)
+                            
+                            Button {
+                                withAnimation {
+                                    showPremium = true
+                                }
+                            } label: {
+                                Text("Skip")
+                                    .font(Font.custom("Poppins-Regular", size: 16))
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
@@ -163,6 +260,27 @@ struct OnboardingPagesView: View {
     private func nextPage() {
         withAnimation {
             currentPage += 1
+        }
+    }
+    
+    private func requestLocation() {
+        // First request when-in-use, then after granted, request always
+        if locationManager.authorizationStatus == .notDetermined {
+            locationManager.requestLocationPermission()
+        } else if locationManager.authorizationStatus == .authorizedWhenInUse {
+            locationManager.requestAlwaysAuthorization()
+        }
+    }
+    
+    private func requestNotifications() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            DispatchQueue.main.async {
+                if granted {
+                    notificationStatus = .authorized
+                } else {
+                    notificationStatus = .denied
+                }
+            }
         }
     }
 }
@@ -202,15 +320,17 @@ struct ContinueButton: View {
                 }
             }
             .frame(width: geometry.size.width * 0.81)
-            .frame(maxWidth: .infinity) // Center the button
+            .frame(maxWidth: .infinity)
         }
-        .frame(height: 60) // Set a fixed height for GeometryReader
+        .frame(height: 60)
     }
 }
 
 // MARK: - Individual Onboarding Page
 struct OnboardingPageView: View {
     let page: OnboardingPage
+    @ObservedObject var locationManager: OnboardingLocationManager
+    @Binding var notificationStatus: UNAuthorizationStatus
     @State private var isAnimating = false
     
     var body: some View {
@@ -246,17 +366,46 @@ struct OnboardingPageView: View {
                         .opacity(isAnimating ? 1 : 0)
                 }
                 
-                Image(systemName: page.imageName)
-                    .font(.system(size: 70, weight: .regular))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.barTrailPrimary, Color.barTrailSecondary],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                // Show checkmark if permission granted
+                if page.pageType == .location &&
+                   (locationManager.authorizationStatus == .authorizedAlways ||
+                    locationManager.authorizationStatus == .authorizedWhenInUse) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 70, weight: .regular))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.green, Color.green.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .scaleEffect(isAnimating ? 1.0 : 0.5)
-                    .opacity(isAnimating ? 1 : 0)
+                        .scaleEffect(isAnimating ? 1.0 : 0.5)
+                        .opacity(isAnimating ? 1 : 0)
+                } else if page.pageType == .notifications && notificationStatus == .authorized {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 70, weight: .regular))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.green, Color.green.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .scaleEffect(isAnimating ? 1.0 : 0.5)
+                        .opacity(isAnimating ? 1 : 0)
+                } else {
+                    Image(systemName: page.imageName)
+                        .font(.system(size: 70, weight: .regular))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.barTrailPrimary, Color.barTrailSecondary],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .scaleEffect(isAnimating ? 1.0 : 0.5)
+                        .opacity(isAnimating ? 1 : 0)
+                }
             }
             .padding(.bottom, 20)
             
@@ -301,15 +450,20 @@ struct OnboardingPageView: View {
     }
 }
 
-
-
 // MARK: - Supporting Models
+enum OnboardingPageType {
+    case info
+    case location
+    case notifications
+}
+
 struct OnboardingPage {
     let title: String
     let subtitle: String
     let imageName: String
     let accentColor: Color
     let description: String
+    let pageType: OnboardingPageType
 }
 
 // MARK: - Preview

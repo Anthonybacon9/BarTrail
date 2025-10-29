@@ -5,21 +5,27 @@
 //  Created by Anthony Bacon on 26/10/2025.
 //
 
-
 import SwiftUI
 import RevenueCat
 import Combine
 
-class RevenueCatManager: ObservableObject {
+class RevenueCatManager: NSObject, ObservableObject {
     static let shared = RevenueCatManager()
     
     @Published var isSubscribed = false
     @Published var currentOffering: Offering?
     
-    private init() {
+    private var cancellables = Set<AnyCancellable>()
+    
+    private override init() {
+        super.init()
+        
         // Configure RevenueCat
         Purchases.logLevel = .debug // Remove in production
-        Purchases.configure(withAPIKey: "appl_XGEpBFsheoTdxkzXHkSsZSSyBrN") // Replace with your key
+        Purchases.configure(withAPIKey: "appl_XGEpBFsheoTdxkzXHkSsZSSyBrN")
+        
+        // Set up delegate for real-time updates
+        Purchases.shared.delegate = self
         
         // Check subscription status
         checkSubscriptionStatus()
@@ -35,8 +41,10 @@ class RevenueCatManager: ObservableObject {
                 return
             }
             
-            // Check if user has active subscription
-            self?.isSubscribed = customerInfo.entitlements["premium"]?.isActive == true
+            // Update on main thread
+            DispatchQueue.main.async {
+                self?.isSubscribed = customerInfo.entitlements["premium"]?.isActive == true
+            }
         }
     }
     
@@ -47,7 +55,9 @@ class RevenueCatManager: ObservableObject {
                 return
             }
             
-            self?.currentOffering = offerings.current
+            DispatchQueue.main.async {
+                self?.currentOffering = offerings.current
+            }
         }
     }
     
@@ -62,8 +72,10 @@ class RevenueCatManager: ObservableObject {
             
             // Check if premium is now active
             let isPremium = customerInfo?.entitlements["premium"]?.isActive == true
-            self?.isSubscribed = isPremium
-            completion(isPremium, nil)
+            DispatchQueue.main.async {
+                self?.isSubscribed = isPremium
+                completion(isPremium, nil)
+            }
         }
     }
     
@@ -75,8 +87,21 @@ class RevenueCatManager: ObservableObject {
             }
             
             let isPremium = customerInfo?.entitlements["premium"]?.isActive == true
-            self?.isSubscribed = isPremium
-            completion(isPremium, nil)
+            DispatchQueue.main.async {
+                self?.isSubscribed = isPremium
+                completion(isPremium, nil)
+            }
+        }
+    }
+}
+
+// MARK: - PurchasesDelegate
+extension RevenueCatManager: PurchasesDelegate {
+    func purchases(_ purchases: Purchases, receivedUpdated customerInfo: CustomerInfo) {
+        // This gets called automatically when subscription status changes
+        DispatchQueue.main.async { [weak self] in
+            self?.isSubscribed = customerInfo.entitlements["premium"]?.isActive == true
+            print("Subscription status updated: \(self?.isSubscribed ?? false)")
         }
     }
 }
