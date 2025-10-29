@@ -3,6 +3,7 @@
 //  BarTrail
 //
 //  Created by Anthony Bacon on 26/10/2025.
+//  FIXED: App Store Review compliance
 //
 import SwiftUI
 import RevenueCat
@@ -11,7 +12,6 @@ import Combine
 struct PremiumBuyingTest: View {
     @State private var customerInfo: CustomerInfo?
     @State private var isPro: Bool = false
-    
     
     var body: some View {
         Button("Subscribe Monthly"){
@@ -41,14 +41,11 @@ struct PremiumBuyingTest: View {
     }
 }
 
-// MARK: - Premium Upgrade View
+// MARK: - Premium Upgrade View (FIXED)
 struct PremiumUpgradeView: View {
     @Binding var isOnboardingComplete: Bool
     @State private var selectedPlan: PricingPlan = .yearly
     @State private var isAnimating = false
-    
-    // COMMENTED OUT: RevenueCat integration until approval
-    // @EnvironmentObject var revenueCatManager: RevenueCatManager
     @State private var customerInfo: CustomerInfo?
     @State private var isPro: Bool = false
     @State private var isPurchasing = false
@@ -64,19 +61,6 @@ struct PremiumUpgradeView: View {
             case .yearly: return "£19.99"
             }
         }
-        
-        // COMMENTED OUT: RevenueCat price fetching
-        // func getPrice(from revenueCatManager: RevenueCatManager) -> String {
-        //     guard let offering = revenueCatManager.currentOffering else {
-        //         return self == .yearly ? "£19.99" : "£2.99"
-        //     }
-        //
-        //     let package = self == .yearly ?
-        //         offering.package(identifier: "annual") :
-        //         offering.package(identifier: "monthly")
-        //
-        //     return package?.storeProduct.localizedPriceString ?? (self == .yearly ? "£19.99" : "£2.99")
-        // }
         
         var period: String {
             switch self {
@@ -183,64 +167,41 @@ struct PremiumUpgradeView: View {
                     .padding(.horizontal, 24)
                     .opacity(isAnimating ? 1 : 0)
                     
-                    // CTA Button
+                    // FIXED: CTA Button - billed amount is most prominent
                     Button {
                         purchase(productID: selectedPlan.productID)
-                        
-                        // COMMENTED OUT: RevenueCat purchase flow
-                        // guard let offering = revenueCatManager.currentOffering else {
-                        //     errorMessage = "Unable to load products. Please try again."
-                        //     showError = true
-                        //     return
-                        // }
-                        //
-                        // let package = selectedPlan == .yearly ?
-                        //     offering.package(identifier: "Annual") :
-                        //     offering.package(identifier: "Monthly")
-                        //
-                        // guard let package = package else {
-                        //     errorMessage = "Selected plan not available."
-                        //     showError = true
-                        //     return
-                        // }
-                        //
-                        // isPurchasing = true
-                        // revenueCatManager.purchase(package: package) { success, error in
-                        //     isPurchasing = false
-                        //
-                        //     if success {
-                        //         isOnboardingComplete = true
-                        //     } else if let error = error {
-                        //         errorMessage = error.localizedDescription
-                        //         showError = true
-                        //     }
-                        // }
                     } label: {
-                        if #available(iOS 26.0, *) {
-                            Text(selectedPlan == .yearly ? "Start 7-Day Free Trial" : "Start Premium")
-                                .font(Font.custom("Poppins-SemiBold", size: 17))
+                        VStack(spacing: 4) {
+                            // FIXED: Billed amount is MOST PROMINENT (larger, bold)
+                            Text("Subscribe for \(selectedPlan.price)/\(selectedPlan.period)")
+                                .font(Font.custom("Poppins-Bold", size: 18))
+                                .foregroundColor(.white)
                             
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .glassEffect(.regular.tint(Color.barTrailPrimary.opacity(0.5)), in: .rect(cornerRadius: 16.0))
-                                .shadow(color: Color.barTrailPrimary.opacity(0.4), radius: 10)
-                        } else {
-                            Text(selectedPlan == .yearly ? "Start 7-Day Free Trial" : "Start Premium")
-                                .font(Font.custom("Poppins-SemiBold", size: 17))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
+                            // FIXED: Trial info is SUBORDINATE (smaller, lighter weight)
+                            if selectedPlan == .yearly {
+                                Text("Includes 7-day free trial")
+                                    .font(Font.custom("Poppins-Regular", size: 13))
+                                    .foregroundColor(.white.opacity(0.85))
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            Group {
+                                if #available(iOS 26.0, *) {
+                                    Color.clear
+                                        .glassEffect(.regular.tint(Color.barTrailPrimary.opacity(0.5)), in: .rect(cornerRadius: 16.0))
+                                } else {
                                     LinearGradient(
                                         colors: [Color.barTrailPrimary, Color.barTrailSecondary],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
-                                )
-                                .cornerRadius(14)
-                                .shadow(color: Color.barTrailPrimary.opacity(0.4), radius: 10)
-                        }
+                                    .cornerRadius(14)
+                                }
+                            }
+                        )
+                        .shadow(color: Color.barTrailPrimary.opacity(0.4), radius: 10)
                     }
                     .disabled(isPurchasing)
                     .alert("Error", isPresented: $showError) {
@@ -252,13 +213,30 @@ struct PremiumUpgradeView: View {
                     .padding(.top, 8)
                     .opacity(isAnimating ? 1 : 0)
                     
-                    // Trial info for yearly
-                    if selectedPlan == .yearly {
-                        Text("7 days free, then \(selectedPlan.price)/year")
-                            .font(Font.custom("Poppins-Regular", size: 12))
+                    // FIXED: Required subscription information and legal links
+                    VStack(spacing: 12) {
+                        // Subscription length and auto-renew info
+                        Text("Subscription automatically renews unless cancelled at least 24 hours before the end of the current period.")
+                            .font(Font.custom("Poppins-Regular", size: 11))
                             .foregroundColor(.secondary)
-                            .opacity(isAnimating ? 1 : 0)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                        
+                        // FIXED: Legal links (REQUIRED)
+                        HStack(spacing: 16) {
+                            Link("Privacy Policy", destination: URL(string: "https://anthonybacon9.github.io/BarTrail/privacy.html")!)
+                                .font(Font.custom("Poppins-Regular", size: 12))
+                                .foregroundColor(.blue)
+                            
+                            Text("•")
+                                .foregroundColor(.secondary)
+                            
+                            Link("Terms of Use", destination: URL(string: "https://yourwebsite.com/terms")!)
+                                .font(Font.custom("Poppins-Regular", size: 12))
+                                .foregroundColor(.blue)
+                        }
                     }
+                    .opacity(isAnimating ? 1 : 0)
                     
                     // Continue without premium
                     Button {
@@ -274,19 +252,6 @@ struct PremiumUpgradeView: View {
                     
                     Button {
                         restorePurchases()
-                        
-                        // COMMENTED OUT: RevenueCat restore
-                        // isPurchasing = true
-                        // revenueCatManager.restorePurchases { success, error in
-                        //     isPurchasing = false
-                        //
-                        //     if success {
-                        //         isOnboardingComplete = true
-                        //     } else if let error = error {
-                        //         errorMessage = error.localizedDescription
-                        //         showError = true
-                        //     }
-                        // }
                     } label: {
                         Text("Restore Purchases")
                             .font(Font.custom("Poppins-Regular", size: 13))
@@ -303,7 +268,6 @@ struct PremiumUpgradeView: View {
         }
     }
     
-    // Direct purchase function (from PremiumBuyingTest)
     func purchase(productID: String) {
         isPurchasing = true
         Task {
@@ -374,14 +338,11 @@ struct PremiumUpgradeView: View {
     }
 }
 
-// MARK: - Premium Upgrade Sheet
+// MARK: - Premium Upgrade Sheet (FIXED)
 struct PremiumUpgradeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPlan: PricingPlan = .yearly
     @State private var isAnimating = false
-    
-    // COMMENTED OUT: RevenueCat integration until approval
-    // @EnvironmentObject var revenueCatManager: RevenueCatManager
     @State private var customerInfo: CustomerInfo?
     @State private var isPro: Bool = false
     @State private var isPurchasing = false
@@ -503,35 +464,41 @@ struct PremiumUpgradeSheet: View {
                     .padding(.horizontal, 24)
                     .opacity(isAnimating ? 1 : 0)
                     
-                    // CTA Button
+                    // FIXED: CTA Button - billed amount is most prominent
                     Button {
                         purchase(productID: selectedPlan.productID)
                     } label: {
-                        if #available(iOS 26.0, *) {
-                            Text(selectedPlan == .yearly ? "Start 7-Day Free Trial" : "Start Premium")
-                                .font(Font.custom("Poppins-SemiBold", size: 17))
+                        VStack(spacing: 4) {
+                            // FIXED: Billed amount is MOST PROMINENT (larger, bold)
+                            Text("Subscribe for \(selectedPlan.price)/\(selectedPlan.period)")
+                                .font(Font.custom("Poppins-Bold", size: 18))
+                                .foregroundColor(.white)
                             
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .glassEffect(.regular.tint(Color.barTrailPrimary.opacity(0.5)), in: .rect(cornerRadius: 16.0))
-                                .shadow(color: Color.barTrailPrimary.opacity(0.4), radius: 10)
-                        } else {
-                            Text(selectedPlan == .yearly ? "Start 7-Day Free Trial" : "Start Premium")
-                                .font(Font.custom("Poppins-SemiBold", size: 17))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
+                            // FIXED: Trial info is SUBORDINATE (smaller, lighter weight)
+                            if selectedPlan == .yearly {
+                                Text("Includes 7-day free trial")
+                                    .font(Font.custom("Poppins-Regular", size: 13))
+                                    .foregroundColor(.white.opacity(0.85))
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            Group {
+                                if #available(iOS 26.0, *) {
+                                    Color.clear
+                                        .glassEffect(.regular.tint(Color.barTrailPrimary.opacity(0.5)), in: .rect(cornerRadius: 16.0))
+                                } else {
                                     LinearGradient(
                                         colors: [Color.barTrailPrimary, Color.barTrailSecondary],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
-                                )
-                                .cornerRadius(14)
-                                .shadow(color: Color.barTrailPrimary.opacity(0.4), radius: 10)
-                        }
+                                    .cornerRadius(14)
+                                }
+                            }
+                        )
+                        .shadow(color: Color.barTrailPrimary.opacity(0.4), radius: 10)
                     }
                     .disabled(isPurchasing)
                     .alert("Error", isPresented: $showError) {
@@ -543,13 +510,30 @@ struct PremiumUpgradeSheet: View {
                     .padding(.top, 8)
                     .opacity(isAnimating ? 1 : 0)
                     
-                    // Trial info for yearly
-                    if selectedPlan == .yearly {
-                        Text("7 days free, then \(selectedPlan.price)/year")
-                            .font(Font.custom("Poppins-Regular", size: 12))
+                    // FIXED: Required subscription information and legal links
+                    VStack(spacing: 12) {
+                        // Subscription length and auto-renew info
+                        Text("Subscription automatically renews unless cancelled at least 24 hours before the end of the current period.")
+                            .font(Font.custom("Poppins-Regular", size: 11))
                             .foregroundColor(.secondary)
-                            .opacity(isAnimating ? 1 : 0)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                        
+                        // FIXED: Legal links (REQUIRED)
+                        HStack(spacing: 16) {
+                            Link("Privacy Policy", destination: URL(string: "https://yourwebsite.com/privacy")!)
+                                .font(Font.custom("Poppins-Regular", size: 12))
+                                .foregroundColor(.blue)
+                            
+                            Text("•")
+                                .foregroundColor(.secondary)
+                            
+                            Link("Terms of Use", destination: URL(string: "https://yourwebsite.com/terms")!)
+                                .font(Font.custom("Poppins-Regular", size: 12))
+                                .foregroundColor(.blue)
+                        }
                     }
+                    .opacity(isAnimating ? 1 : 0)
                     
                     // Continue without premium
                     Button {
@@ -570,6 +554,7 @@ struct PremiumUpgradeSheet: View {
                             .font(Font.custom("Poppins-Regular", size: 13))
                             .foregroundColor(.secondary)
                     }
+                    .padding(.bottom, 8)
                 }
             }
         }
@@ -580,7 +565,6 @@ struct PremiumUpgradeSheet: View {
         }
     }
     
-    // Direct purchase function
     func purchase(productID: String) {
         isPurchasing = true
         Task {

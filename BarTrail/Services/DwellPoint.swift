@@ -31,6 +31,7 @@ struct DwellPoint: Codable, Identifiable {
         manualPlaceName != nil
     }
     
+    // UPDATED: Allow id to be passed in (for updates)
     init(id: UUID = UUID(), location: CLLocationCoordinate2D, startTime: Date, endTime: Date) {
         // Validate dates are reasonable
         let currentYear = Calendar.current.component(.year, from: Date())
@@ -86,5 +87,3 @@ struct DwellPoint: Codable, Identifiable {
         try container.encodeIfPresent(suggestedPlaces, forKey: .suggestedPlaces)
     }
 }
-
-

@@ -16,6 +16,7 @@ class SessionManager: NSObject, ObservableObject {
     
     // MARK: - Dwell Detection State
     private var dwellCandidate: DwellCandidate?
+    private var activeDwellId: UUID? // Track which dwell is currently active
     private let dwellRadiusMeters: CLLocationDistance = 25
     private let dwellDurationSeconds: TimeInterval = 20 * 60 // 20 minutes
     
@@ -26,7 +27,7 @@ class SessionManager: NSObject, ObservableObject {
         var locationCount: Int = 1
         
         var duration: TimeInterval {
-            return lastSeenAt.timeIntervalSince(firstSeenAt)
+            lastSeenAt.timeIntervalSince(firstSeenAt)
         }
     }
     
@@ -38,43 +39,22 @@ class SessionManager: NSObject, ObservableObject {
     // MARK: - Location Manager Setup
     private func setupLocationManager() {
         locationManager.delegate = self
-        
-        // Adaptive accuracy - better balance of accuracy vs battery
-        locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters // Improved from HundredMeters
-        locationManager.distanceFilter = 15 // Reduced from 25 meters for better precision
-        
-        // Better activity type for nightlife scenarios
-        locationManager.activityType = .otherNavigation
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        locationManager.distanceFilter = 25
         
         #if !targetEnvironment(simulator)
         if Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") != nil {
             locationManager.allowsBackgroundLocationUpdates = true
             locationManager.showsBackgroundLocationIndicator = true
-            locationManager.pausesLocationUpdatesAutomatically = false
         }
         #endif
         
-        // Request temporary full accuracy when needed
-        if #available(iOS 14.0, *) {
-            locationManager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "NightlifeTracking") { error in
-                if let error = error {
-                    print("⚠️ Full accuracy denied: \(error)")
-                } else {
-                    print("✅ Full accuracy granted for precise venue tracking")
-                    // Temporarily increase accuracy when full accuracy is available
-                    self.locationManager.desiredAccuracy = kCLLocationAccuracyBest
-                    // Return to balanced accuracy after 2 hours
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 7200) {
-                        self.locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
-                    }
-                }
-            }
-        }
+        locationManager.pausesLocationUpdatesAutomatically = false
+        locationManager.activityType = .fitness
     }
     
     // MARK: - Session Control
     func startNight() {
-        // Check authorization
         let status = locationManager.authorizationStatus
         
         if status == .notDetermined {
@@ -87,67 +67,52 @@ class SessionManager: NSObject, ObservableObject {
             return
         }
         
-        // Create new session
         currentSession = NightSession()
         isTracking = true
         
-        // Start continuous location tracking
         locationManager.startUpdatingLocation()
-        
-        // Optional: Start visit monitoring for Apple's optimized detection
         locationManager.startMonitoringVisits()
         
-        // Schedule long night warning (6 hours)
         NotificationManager.shared.scheduleLongNightWarning(hours: 6)
-        
-        // Start auto-stop timer if enabled
         AutoStopManager.shared.startAutoStopTimer()
         
-        // Start Live Activity
         if #available(iOS 16.2, *) {
             LiveActivityManager.shared.startActivity(
                 sessionId: currentSession!.id.uuidString,
                 startTime: currentSession!.startTime
             )
-            
-            // Start timer to update Live Activity every 30 seconds
             startLiveActivityUpdateTimer()
         }
         
         print("✅ Night started at \(Date())")
-        print("📍 Tracking with accuracy: \(locationManager.desiredAccuracy)m")
-        print("📊 Distance filter: \(locationManager.distanceFilter)m")
     }
     
     func stopNight() {
         guard let session = currentSession else { return }
         
-        // Check if there's a pending dwell candidate
-        if let candidate = dwellCandidate {
-            finalizeDwellIfQualified(candidate, currentTime: Date())
+        // FIXED: Finalize any active dwell when stopping
+        if let activeDwellId = activeDwellId {
+            finalizeActiveDwell(dwellId: activeDwellId, endTime: Date())
         }
         
-        // Stop all tracking
+        // Also check for pending candidate
+        if let candidate = dwellCandidate {
+            finalizeDwellIfQualified(candidate)
+        }
+        
         locationManager.stopUpdatingLocation()
         locationManager.stopMonitoringVisits()
         
-        // Mark session as ended
         session.end()
         isTracking = false
         
-        // Clear dwell state
         dwellCandidate = nil
+        activeDwellId = nil
         
-        // Cancel long night warning
         NotificationManager.shared.cancelLongNightWarning()
-        
-        // Cancel auto-stop timer
         AutoStopManager.shared.cancelAutoStopTimer()
-        
-        // Stop Live Activity update timer
         stopLiveActivityUpdateTimer()
         
-        // Calculate stats
         let totalDistance = calculateTotalDistance(for: session.route)
         let duration = session.duration ?? 0
         
@@ -155,17 +120,13 @@ class SessionManager: NSObject, ObservableObject {
             LiveActivityManager.shared.endActivity(
                 finalDistance: session.totalDistance,
                 finalStops: session.dwells.count,
-                finalDrinks: session.drinks.total, // NEW
+                finalDrinks: session.drinks.total,
                 duration: duration
             )
         }
         
-        // Save session to storage
         SessionStorage.shared.saveSession(session)
-        
-        // Send night ended notification
         NotificationManager.shared.sendNightEndedNotification(session: session)
-        
         
         print("🛑 Night stopped at \(Date())")
         print("📍 Total locations tracked: \(session.route.count)")
@@ -200,58 +161,83 @@ class SessionManager: NSObject, ObservableObject {
     }
     
     private func isLocationValid(_ location: CLLocation) -> Bool {
-        // Filter out inaccurate locations (tighter bounds)
-        guard location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= 50 else {
-            print("⚠️ Location filtered: poor accuracy (\(location.horizontalAccuracy)m)")
+        guard location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= 100 else {
             return false
         }
         
-        // Filter out stale locations
-        guard location.timestamp.timeIntervalSinceNow > -30 else { // Reduced from 60 to 30 seconds
-            print("⚠️ Location filtered: stale timestamp")
+        guard location.timestamp.timeIntervalSinceNow > -60 else {
             return false
         }
         
-        // Filter out invalid coordinates
         guard CLLocationCoordinate2DIsValid(location.coordinate) else {
-            print("⚠️ Location filtered: invalid coordinates")
-            return false
-        }
-        
-        // Filter out altitude inaccuracies (optional)
-        if location.verticalAccuracy > 100 {
-            print("⚠️ Location filtered: poor vertical accuracy")
             return false
         }
         
         return true
     }
     
-    // MARK: - Dwell Detection Logic
+    // MARK: - FIXED Dwell Detection Logic
     
     private func processDwellDetection(for location: CLLocation) {
         guard let session = currentSession else { return }
         
-        // Use CURRENT time, not location timestamp for dwell detection
-        let currentTime = Date()
-        
-        // Skip if location is moving fast
+        // If user is moving fast, end any active dwell or candidate
         if location.speed > 1.4 {
+            if let dwellId = activeDwellId {
+                finalizeActiveDwell(dwellId: dwellId, endTime: Date())
+                activeDwellId = nil
+            }
             if let candidate = dwellCandidate {
-                finalizeDwellIfQualified(candidate, currentTime: currentTime)
+                finalizeDwellIfQualified(candidate)
                 dwellCandidate = nil
             }
+            print("🚶 Moving detected - dwells cleared")
             return
         }
         
+        // Check if we're updating an active dwell
+        if let dwellId = activeDwellId {
+            guard let currentDwell = session.dwells.first(where: { $0.id == dwellId }) else {
+                activeDwellId = nil
+                return
+            }
+            
+            let dwellLocation = CLLocation(
+                latitude: currentDwell.location.latitude,
+                longitude: currentDwell.location.longitude
+            )
+            let distance = location.distance(from: dwellLocation)
+            
+            if distance <= dwellRadiusMeters {
+                // Still at the active dwell - update its endTime
+                updateActiveDwellEndTime(dwellId: dwellId, newEndTime: Date())
+                print("📍 Still at active dwell (updated)")
+                return
+            } else {
+                // User left the dwell - finalize it
+                finalizeActiveDwell(dwellId: dwellId, endTime: Date())
+                activeDwellId = nil
+                print("🚶 Left active dwell - finalized")
+                
+                // Start new candidate at current location
+                dwellCandidate = DwellCandidate(
+                    startLocation: location,
+                    firstSeenAt: Date(),
+                    lastSeenAt: Date()
+                )
+                print("🎯 New candidate started after leaving dwell")
+                return
+            }
+        }
+        
+        // No active dwell - check candidate
         if dwellCandidate == nil {
-            // START new candidate with CURRENT time
             dwellCandidate = DwellCandidate(
                 startLocation: location,
-                firstSeenAt: currentTime,
-                lastSeenAt: currentTime
+                firstSeenAt: Date(),
+                lastSeenAt: Date()
             )
-            print("🎯 New dwell candidate started at \(currentTime)")
+            print("🎯 New dwell candidate started")
             return
         }
         
@@ -259,45 +245,107 @@ class SessionManager: NSObject, ObservableObject {
         let distance = location.distance(from: candidate.startLocation)
         
         if distance <= dwellRadiusMeters {
-            // UPDATE with CURRENT time
-            candidate.lastSeenAt = currentTime
+            // Still within radius
+            candidate.lastSeenAt = Date()
             candidate.locationCount += 1
             dwellCandidate = candidate
             
             let duration = candidate.duration
+            let minutes = Int(duration) / 60
+            let seconds = Int(duration) % 60
+            print("📍 Still at candidate (\(candidate.locationCount) updates, \(minutes)m \(seconds)s)")
+            
+            // FIXED: Candidate qualified - create dwell and mark as active
             if duration >= dwellDurationSeconds {
-                // Create dwell with PROPER dates
                 let dwellPoint = DwellPoint(
                     location: candidate.startLocation.coordinate,
                     startTime: candidate.firstSeenAt,
-                    endTime: candidate.lastSeenAt  // This should be current time
+                    endTime: Date() // Will be updated as user stays
                 )
                 session.addDwell(dwellPoint)
                 
-                print("✅ DWELL DETECTED! Duration: \(formatDuration(dwellPoint.duration))")
+                // Mark this dwell as active (ongoing)
+                activeDwellId = dwellPoint.id
+                
+                print("✅ DWELL QUALIFIED - Now tracking as active")
+                print("   Duration so far: \(formatDuration(dwellPoint.duration))")
+                
+                NotificationManager.shared.sendDwellDetectedNotification(
+                    dwell: dwellPoint,
+                    dwellNumber: session.dwells.count
+                )
                 
                 // Clear candidate
                 dwellCandidate = nil
             }
         } else {
-            // User left the area - finalize with CURRENT time
-            finalizeDwellIfQualified(candidate, currentTime: currentTime)
+            // User left candidate area
+            print("🚶 Left candidate area (moved \(String(format: "%.0f", distance))m)")
+            finalizeDwellIfQualified(candidate)
             
-            // Start new candidate
             dwellCandidate = DwellCandidate(
                 startLocation: location,
-                firstSeenAt: currentTime,
-                lastSeenAt: currentTime
+                firstSeenAt: Date(),
+                lastSeenAt: Date()
             )
+            print("🎯 New candidate at new location")
         }
     }
-
     
-    private func finalizeDwellIfQualified(_ candidate: DwellCandidate, currentTime: Date) {
+    // NEW: Update an active dwell's end time by replacing it
+    private func updateActiveDwellEndTime(dwellId: UUID, newEndTime: Date) {
+        guard let session = currentSession,
+              let index = session.dwells.firstIndex(where: { $0.id == dwellId }) else {
+            return
+        }
+        
+        let oldDwell = session.dwells[index]
+        
+        // Create new DwellPoint with updated endTime
+        let updatedDwell = DwellPoint(
+            id: oldDwell.id, // Keep same ID
+            location: oldDwell.location,
+            startTime: oldDwell.startTime,
+            endTime: newEndTime
+        )
+        
+        // Replace in array
+        session.dwells[index] = updatedDwell
+        
+        let duration = updatedDwell.duration
+        print("⏱️ Updated active dwell endTime (duration: \(formatDuration(duration)))")
+    }
+    
+    // NEW: Finalize an active dwell when user leaves
+    private func finalizeActiveDwell(dwellId: UUID, endTime: Date) {
+        guard let session = currentSession,
+              let index = session.dwells.firstIndex(where: { $0.id == dwellId }) else {
+            return
+        }
+        
+        let oldDwell = session.dwells[index]
+        
+        // Create final DwellPoint with correct endTime
+        let finalDwell = DwellPoint(
+            id: oldDwell.id,
+            location: oldDwell.location,
+            startTime: oldDwell.startTime,
+            endTime: endTime
+        )
+        
+        // Replace in array
+        session.dwells[index] = finalDwell
+        
+        let finalDuration = finalDwell.duration
+        print("✅ DWELL FINALIZED")
+        print("   Total duration: \(formatDuration(finalDuration))")
+    }
+    
+    private func finalizeDwellIfQualified(_ candidate: DwellCandidate) {
         guard let session = currentSession else { return }
         
         var finalCandidate = candidate
-        finalCandidate.lastSeenAt = currentTime
+        finalCandidate.lastSeenAt = Date()
         
         if finalCandidate.duration >= dwellDurationSeconds {
             let dwellPoint = DwellPoint(
@@ -306,7 +354,14 @@ class SessionManager: NSObject, ObservableObject {
                 endTime: finalCandidate.lastSeenAt
             )
             session.addDwell(dwellPoint)
-            print("✅ DWELL FINALIZED on departure")
+            
+            print("✅ DWELL FINALIZED (candidate on departure)")
+            print("   Duration: \(formatDuration(dwellPoint.duration))")
+        } else {
+            let duration = finalCandidate.duration
+            let minutes = Int(duration) / 60
+            let seconds = Int(duration) % 60
+            print("⏱️ Candidate didn't qualify (\(minutes)m \(seconds)s)")
         }
     }
     
@@ -334,7 +389,7 @@ class SessionManager: NSObject, ObservableObject {
         LiveActivityManager.shared.updateActivity(
             distance: session.totalDistance,
             stops: session.dwells.count,
-            drinks: session.drinks.total, // NEW
+            drinks: session.drinks.total,
             elapsedTime: elapsed
         )
     }
@@ -348,13 +403,12 @@ extension SessionManager: CLLocationManagerDelegate {
         for location in locations {
             guard isLocationValid(location) else { continue }
             
-            // Use the location's timestamp directly for the route
             session.addLocation(location)
-            
-            // But use current time for dwell detection
             processDwellDetection(for: location)
             
-            print("📍 Location at \(location.timestamp): (\(location.coordinate.latitude), \(location.coordinate.longitude))")
+            let accuracy = String(format: "%.1f", location.horizontalAccuracy)
+            let speed = location.speed >= 0 ? String(format: "%.1f", location.speed) : "N/A"
+            print("📍 Location: (\(location.coordinate.latitude), \(location.coordinate.longitude)) | Accuracy: \(accuracy)m | Speed: \(speed)m/s")
         }
         
         objectWillChange.send()
@@ -363,30 +417,20 @@ extension SessionManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
         guard let session = currentSession, isTracking else { return }
         
-        // Apple's visit detection provides an alternative to our manual dwell detection
-        // We can use this as a backup or validation
         let arrivalDate = visit.arrivalDate
         let departureDate = visit.departureDate
         let duration = departureDate.timeIntervalSince(arrivalDate)
         
         print("🏠 Apple Visit detected:")
-        print("   Location: (\(visit.coordinate.latitude), \(visit.coordinate.longitude))")
-        print("   Arrival: \(arrivalDate)")
-        print("   Departure: \(departureDate)")
         print("   Duration: \(formatDuration(duration))")
-        print("   Accuracy: ±\(visit.horizontalAccuracy)m")
         
-        // Optional: Use Apple's visit as a fallback dwell detection
-        // Only if it meets our duration threshold and we don't have overlapping manual dwells
         if duration >= dwellDurationSeconds {
-            // Check if we already detected this dwell manually
             let hasOverlap = session.dwells.contains { dwell in
                 let dwellLocation = CLLocation(latitude: dwell.location.latitude, longitude: dwell.location.longitude)
                 let visitLocation = CLLocation(latitude: visit.coordinate.latitude, longitude: visit.coordinate.longitude)
                 let distance = dwellLocation.distance(from: visitLocation)
                 
-                // Check if dwell overlaps in time and space
-                return distance < 50 && // Within 50m
+                return distance < 50 &&
                        dwell.startTime < departureDate &&
                        dwell.endTime > arrivalDate
             }
@@ -398,9 +442,7 @@ extension SessionManager: CLLocationManagerDelegate {
                     endTime: departureDate
                 )
                 session.addDwell(dwellPoint)
-                print("✅ Apple Visit added as dwell (no manual overlap)")
-            } else {
-                print("ℹ️ Apple Visit overlaps with manual dwell - skipped")
+                print("✅ Apple Visit added as dwell")
             }
         }
     }
@@ -408,22 +450,6 @@ extension SessionManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         print("📱 Location authorization changed: \(status.rawValue)")
         
-        switch status {
-        case .notDetermined:
-            print("   Status: Not determined")
-        case .authorizedAlways:
-            print("   Status: Always authorized ✓")
-        case .authorizedWhenInUse:
-            print("   Status: When in use (⚠️ background tracking limited)")
-        case .denied:
-            print("   Status: Denied")
-        case .restricted:
-            print("   Status: Restricted")
-        @unknown default:
-            print("   Status: Unknown")
-        }
-        
-        // If user just granted permission and we're trying to track, start
         if isTracking && (status == .authorizedAlways || status == .authorizedWhenInUse) {
             locationManager.startUpdatingLocation()
             locationManager.startMonitoringVisits()
@@ -433,14 +459,13 @@ extension SessionManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("❌ Location error: \(error.localizedDescription)")
         
-        // Handle specific error cases
         if let clError = error as? CLError {
             switch clError.code {
             case .denied:
-                print("   Error: Location access denied by user")
+                print("   Error: Location access denied")
                 isTracking = false
             case .network:
-                print("   Error: Network-related location error")
+                print("   Error: Network error")
             default:
                 print("   Error code: \(clError.code.rawValue)")
             }
@@ -448,7 +473,7 @@ extension SessionManager: CLLocationManagerDelegate {
     }
     
     func locationManagerDidPauseLocationUpdates(_ manager: CLLocationManager) {
-        print("⏸️ Location updates paused by system")
+        print("⏸️ Location updates paused")
     }
     
     func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager) {

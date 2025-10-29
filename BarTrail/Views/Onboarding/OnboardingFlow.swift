@@ -198,7 +198,7 @@ struct OnboardingPagesView: View {
                 }
                 .padding(.bottom, 20)
                 
-                // Action buttons
+                // FIXED: Action buttons
                 VStack(spacing: 12) {
                     if currentPage == pages.count - 1 {
                         BarTrail.ContinueButton(action: goToPremium, color: Color.barTrailPrimary, color2: nil, text: "Continue", img: nil)
@@ -206,42 +206,27 @@ struct OnboardingPagesView: View {
                         let currentPageType = pages[currentPage].pageType
                         
                         if currentPageType == .location {
-                            if locationManager.authorizationStatus == .authorizedAlways ||
-                               locationManager.authorizationStatus == .authorizedWhenInUse {
-                                BarTrail.ContinueButton(action: nextPage, color: Color.barTrailPrimary, color2: nil, text: "Next", img: nil)
-                            } else {
-                                BarTrail.ContinueButton(action: requestLocation, color: Color.barTrailPrimary, color2: nil, text: "Enable Location", img: nil)
-                                
-                                Button(action: nextPage) {
-                                    Text("Skip")
-                                        .font(Font.custom("Poppins-Regular", size: 16))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
+                            // FIXED: Always show "Continue" button, which triggers permission
+                            BarTrail.ContinueButton(
+                                action: requestLocationThenContinue,
+                                color: Color.barTrailPrimary,
+                                color2: nil,
+                                text: "Continue",
+                                img: nil
+                            )
+                            // REMOVED: Skip button
                         } else if currentPageType == .notifications {
-                            if notificationStatus == .authorized {
-                                BarTrail.ContinueButton(action: nextPage, color: Color.barTrailPrimary, color2: nil, text: "Next", img: nil)
-                            } else {
-                                BarTrail.ContinueButton(action: requestNotifications, color: Color.barTrailPrimary, color2: nil, text: "Enable Notifications", img: nil)
-                                
-                                Button(action: nextPage) {
-                                    Text("Skip")
-                                        .font(Font.custom("Poppins-Regular", size: 16))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
+                            // FIXED: Always show "Continue" button, which triggers permission
+                            BarTrail.ContinueButton(
+                                action: requestNotificationsThenContinue,
+                                color: Color.barTrailPrimary,
+                                color2: nil,
+                                text: "Continue",
+                                img: nil
+                            )
+                            // REMOVED: Skip button
                         } else {
                             BarTrail.ContinueButton(action: nextPage, color: Color.barTrailPrimary, color2: nil, text: "Next", img: nil)
-                            
-                            Button {
-                                withAnimation {
-                                    showPremium = true
-                                }
-                            } label: {
-                                Text("Skip")
-                                    .font(Font.custom("Poppins-Regular", size: 16))
-                                    .foregroundColor(.secondary)
-                            }
                         }
                     }
                 }
@@ -263,16 +248,23 @@ struct OnboardingPagesView: View {
         }
     }
     
-    private func requestLocation() {
-        // First request when-in-use, then after granted, request always
+    // FIXED: Request location permission and then continue to next page
+    private func requestLocationThenContinue() {
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestLocationPermission()
         } else if locationManager.authorizationStatus == .authorizedWhenInUse {
             locationManager.requestAlwaysAuthorization()
         }
+        
+        // Move to next page regardless of user's choice
+        // This respects their decision about permissions
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            nextPage()
+        }
     }
     
-    private func requestNotifications() {
+    // FIXED: Request notification permission and then continue to next page
+    private func requestNotificationsThenContinue() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             DispatchQueue.main.async {
                 if granted {
@@ -281,6 +273,12 @@ struct OnboardingPagesView: View {
                     notificationStatus = .denied
                 }
             }
+        }
+        
+        // Move to next page regardless of user's choice
+        // This respects their decision about permissions
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            nextPage()
         }
     }
 }
@@ -316,6 +314,7 @@ struct ContinueButton: View {
                     .background(
                         LinearGradient(colors: [color, color2 ?? Color.barTrailSecondary], startPoint: .leading, endPoint: .trailing)
                     )
+                    .cornerRadius(16)
                     .shadow(color: color.opacity(0.4), radius: 10)
                 }
             }
