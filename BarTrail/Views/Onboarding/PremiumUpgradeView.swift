@@ -231,7 +231,7 @@ struct PremiumUpgradeView: View {
                             Text("•")
                                 .foregroundColor(.secondary)
                             
-                            Link("Terms of Use", destination: URL(string: "https://yourwebsite.com/terms")!)
+                            Link("Terms of Use", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
                                 .font(Font.custom("Poppins-Regular", size: 12))
                                 .foregroundColor(.blue)
                         }
