@@ -192,10 +192,6 @@ struct HistoryView: View {
                         .foregroundColor(.secondary)
                     
                     Spacer()
-                    
-                    Text("£1.66/month")
-                        .font(.caption.bold())
-                        .foregroundColor(.green)
                 }
             }
             .padding()

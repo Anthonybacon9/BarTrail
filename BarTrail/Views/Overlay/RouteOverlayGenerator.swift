@@ -99,25 +99,52 @@ class RouteOverlayGenerator {
         return image
     }
     
-    //MARK: - Draw Place Name
+    //MARK: - Draw Place Name (FIXED - No cutoff)
     
     private func drawPlaceName(at point: CGPoint, name: String, in ctx: CGContext, size: CGSize) {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
         
+        // Break long text into multiple lines
+        let maxWidth: CGFloat = size.width * 0.4  // Max 40% of image width
+        
         let text = name as NSString
         
-        // First, get the text size with no stroke for accurate measurement
         let sizeAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 28, weight: .black),
             .paragraphStyle: paragraphStyle
         ]
-        let textSize = text.size(withAttributes: sizeAttributes)
+        
+        // Calculate text size with wrapping
+        let constraintRect = CGSize(width: maxWidth, height: .greatestFiniteMagnitude)
+        let boundingBox = text.boundingRect(
+            with: constraintRect,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: sizeAttributes,
+            context: nil
+        )
+        let textSize = boundingBox.size
         
         let padding: CGFloat = 12
+        let labelOffset: CGFloat = 35  // Distance below marker
+        
+        // Calculate position - ensure it stays within bounds
+        var xPosition = point.x - textSize.width/2
+        let yPosition = point.y + labelOffset
+        
+        // Prevent left edge cutoff
+        if xPosition < padding {
+            xPosition = padding
+        }
+        
+        // Prevent right edge cutoff
+        if xPosition + textSize.width + padding > size.width {
+            xPosition = size.width - textSize.width - padding
+        }
+        
         let backgroundRect = CGRect(
-            x: point.x - textSize.width/2 - padding,
-            y: point.y + 25 - padding,
+            x: xPosition - padding,
+            y: yPosition - padding,
             width: textSize.width + padding * 2,
             height: textSize.height + padding * 2
         )
@@ -129,8 +156,8 @@ class RouteOverlayGenerator {
         ctx.fillPath()
         
         let textRect = CGRect(
-            x: point.x - textSize.width/2,
-            y: point.y + 25,
+            x: xPosition,
+            y: yPosition,
             width: textSize.width,
             height: textSize.height
         )
@@ -141,7 +168,7 @@ class RouteOverlayGenerator {
             .foregroundColor: UIColor.black,
             .paragraphStyle: paragraphStyle,
             .strokeColor: UIColor.black,
-            .strokeWidth: 8.0  // POSITIVE value for stroke only
+            .strokeWidth: 8.0
         ]
         text.draw(in: textRect, withAttributes: strokeAttributes)
         

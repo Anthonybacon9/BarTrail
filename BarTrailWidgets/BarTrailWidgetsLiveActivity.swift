@@ -66,7 +66,7 @@ struct BarTrailLiveActivity: Widget {
                         )
                     )
             }
-        }
+        }.supplementalActivityFamilies([])
     }
     
     // MARK: - Lock Screen View (Strava Style)
@@ -122,16 +122,16 @@ struct BarTrailLiveActivity: Widget {
                     .background(Color.white.opacity(0.3))
                     .frame(height: 40)
                 
-                statColumn(
-                    value: formatDistance(context.state.currentDistance),
-                    label: "Distance",
-                    icon: "figure.walk",
-                    color: Color.blue
-                )
-                
-                Divider()
-                    .background(Color.white.opacity(0.3))
-                    .frame(height: 40)
+//                statColumn(
+//                    value: formatDistance(context.state.currentDistance),
+//                    label: "Distance",
+//                    icon: "figure.walk",
+//                    color: Color.blue
+//                )
+//                
+//                Divider()
+//                    .background(Color.white.opacity(0.3))
+//                    .frame(height: 40)
                 
                 statColumn(
                     value: "\(context.state.currentStops)",

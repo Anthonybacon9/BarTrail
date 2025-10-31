@@ -93,13 +93,18 @@ struct MapSummaryView: View {
                                         selectedDwell = dwell
                                     } label: {
                                         ZStack {
+                                            // Different colors based on type
                                             Circle()
-                                                .fill(dwell.isManuallySet ? .blue : .purple)
+                                                .fill(markerColor(for: dwell))
                                                 .frame(width: 30, height: 30)
                                             
-                                            // Show pencil icon if manually set
+                                            // Show different icons
                                             if dwell.isManuallySet {
                                                 Image(systemName: "pencil.circle.fill")
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 16))
+                                            } else if dwell.isRevisit {
+                                                Image(systemName: "arrow.uturn.left.circle.fill")
                                                     .foregroundColor(.white)
                                                     .font(.system(size: 16))
                                             } else {
@@ -107,23 +112,40 @@ struct MapSummaryView: View {
                                                     .foregroundColor(.white)
                                                     .font(.system(size: 16))
                                             }
+                                            
+                                            // 🆕 Badge for confidence level
+                                            if dwell.confidence == .low || dwell.confidence == .estimated {
+                                                VStack {
+                                                    HStack {
+                                                        Spacer()
+                                                        Circle()
+                                                            .fill(.orange)
+                                                            .frame(width: 8, height: 8)
+                                                    }
+                                                    Spacer()
+                                                }
+                                                .frame(width: 30, height: 30)
+                                            }
                                         }
                                     }
                                     
-                                    // Place name below marker
+                                    // Place name with type indicator
                                     if let placeName = dwellPlaceNames[dwell.id] {
-                                        Text(placeName)
-                                            .font(.caption.bold())
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(
-                                                Capsule()
-                                                    .fill(.black.opacity(0.75))
-                                            )
-                                            .id(placeName) // Force re-render when name changes
+                                        HStack(spacing: 4) {
+                                            Text(dwell.dwellType.icon)
+                                                .font(.caption2)
+                                            Text(placeName)
+                                                .font(.caption.bold())
+                                        }
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            Capsule()
+                                                .fill(.black.opacity(0.75))
+                                        )
+                                        .id(placeName)
                                     } else if isLoadingPlaceNames {
-                                        // Show subtle loading indicator
                                         ProgressView()
                                             .scaleEffect(0.7)
                                             .tint(.white)
@@ -148,38 +170,6 @@ struct MapSummaryView: View {
                     }
                 }
                 
-//                // Recenter button - only show when user has panned
-//                if hasUserPanned && !session.route.isEmpty {
-//                    VStack {
-//                        HStack {
-//                            Spacer()
-//                            Button {
-//                                withAnimation(.easeInOut(duration: 0.5)) {
-//                                    updateMapRegion()
-//                                    hasUserPanned = false
-//                                }
-//                            } label: {
-//                                HStack(spacing: 6) {
-//                                    Image(systemName: "location.fill")
-//                                        .font(.system(size: 14))
-//                                    Text("Recenter")
-//                                        .font(.subheadline.bold())
-//                                }
-//                                .foregroundColor(.white)
-//                                .padding(.horizontal, 16)
-//                                .padding(.vertical, 10)
-//                                .background(.blue)
-//                                .cornerRadius(20)
-//                                .shadow(radius: 5)
-//                            }
-//                            .padding(.trailing, 16)
-//                            .padding(.top, 8)
-//                        }
-//                        Spacer()
-//                    }
-//                    .transition(.move(edge: .top).combined(with: .opacity))
-//                }
-                
                 // Summary Card at Bottom
                 VStack {
                     Spacer()
@@ -200,33 +190,63 @@ struct MapSummaryView: View {
                 
                 // Simplified loading toast - appears briefly at top
                 if isLoadingPlaceNames && !session.dwells.isEmpty && loadedCount < session.dwells.count {
-                    VStack {
-                        HStack(spacing: 12) {
-                            ProgressView()
-                                .scaleEffect(0.9)
-                                .tint(.white)
-                            
-                            Text("Loading locations...")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
+                    if #available(iOS 26.0, *) {
+                        VStack {
+                            HStack(spacing: 12) {
+                                ProgressView()
+                                    .scaleEffect(0.9)
+                                    .tint(.white)
+                                
+                                Text("Loading locations...")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                
+                                Spacer()
+                                
+                                Text("\(loadedCount)/\(session.dwells.count)")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .glassEffect(in: .rect)
+                            .cornerRadius(12)
+                            .shadow(radius: 5)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
                             
                             Spacer()
-                            
-                            Text("\(loadedCount)/\(session.dwells.count)")
-                                .font(.caption.monospacedDigit())
-                                .foregroundColor(.white.opacity(0.8))
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(12)
-                        .shadow(radius: 5)
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                        
-                        Spacer()
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    } else {
+                        VStack {
+                            HStack(spacing: 12) {
+                                ProgressView()
+                                    .scaleEffect(0.9)
+                                    .tint(.white)
+                                
+                                Text("Loading locations...")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                
+                                Spacer()
+                                
+                                Text("\(loadedCount)/\(session.dwells.count)")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(12)
+                            .shadow(radius: 5)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            
+                            Spacer()
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .navigationTitle("\(Text(session.startTime, style: .date))")
@@ -437,76 +457,279 @@ struct MapSummaryView: View {
         )
     }
     
+    private func markerColor(for dwell: DwellPoint) -> Color {
+        if dwell.isManuallySet {
+            return .blue
+        } else if dwell.isRevisit {
+            return .orange
+        } else {
+            // Color by dwell type
+            switch dwell.dwellType {
+            case .passthrough: return .gray
+            case .quickStop: return .orange
+            case .shortVisit: return .purple
+            case .longStop: return .pink
+            case .marathon: return .red
+            }
+        }
+    }
+    
     // MARK: - Summary Card
     
+    // Replace your summaryCard() function in MapSummaryView with this:
+
     @ViewBuilder
     private func summaryCard() -> some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("Night Summary")
-                    .font(.headline)
-                Spacer()
-            }
-            
-            HStack(spacing: 20) {
-                statItem(icon: "clock.fill", label: "Duration", value: formatDuration(session.duration ?? 0))
-                statItem(icon: "figure.walk", label: "Distance", value: formatDistance(session.totalDistance))
-                statItem(icon: "mappin.circle.fill", label: "Stops", value: "\(session.dwells.count)")
-            }
-            
-            if !session.dwells.isEmpty {
-                Divider()
+        if #available(iOS 26.0, *) {
+            VStack(spacing: 0) {
+                // Main Stats Row
+                HStack(spacing: 16) {
+                    compactStat(icon: "clock.fill", value: formatDuration(session.duration ?? 0))
+                    Divider().frame(height: 30)
+                    compactStat(icon: "figure.walk", value: formatDistance(session.totalDistance))
+                    Divider().frame(height: 30)
+                    compactStat(icon: "mappin.circle.fill", value: "\(session.dwells.count)")
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
                 
-                HStack {
-                    Text("Total Dwell Time:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(formatDuration(totalDwellTime()))
-                        .font(.subheadline.bold())
+                // Expandable Details
+                if !session.dwells.isEmpty || session.drinks.total > 0 || session.rating != nil {
+                    Divider()
+                    
+                    VStack(spacing: 8) {
+                        // Dwell Type Breakdown (compact, single line)
+                        if !session.dwells.isEmpty {
+                            dwellTypeRow()
+                        }
+                        
+                        // Drinks (compact, single line)
+                        if session.drinks.total > 0 {
+                            drinksRow()
+                        }
+                        
+                        // Rating
+                        if let rating = session.rating {
+                            ratingRow(rating: rating)
+                        }
+                        
+                        // Revisits indicator
+                        let revisitCount = session.dwells.filter { $0.isRevisit }.count
+                        if revisitCount > 0 {
+                            revisitRow(count: revisitCount)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
                 }
             }
-            if session.drinks.total > 0 {
-                Divider()
+            .glassEffect(in: .rect)
+            .cornerRadius(16)
+            .shadow(radius: 10)
+        } else {
+            VStack(spacing: 0) {
+                // Main Stats Row
+                HStack(spacing: 16) {
+                    compactStat(icon: "clock.fill", value: formatDuration(session.duration ?? 0))
+                    Divider().frame(height: 30)
+                    compactStat(icon: "figure.walk", value: formatDistance(session.totalDistance))
+                    Divider().frame(height: 30)
+                    compactStat(icon: "mappin.circle.fill", value: "\(session.dwells.count)")
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Drinks Consumed:")
-                            .font(.subheadline.bold())
-                        Spacer()
-                        Text("\(session.drinks.total) total")
-                            .font(.subheadline.bold())
-                            .foregroundColor(.orange)
-                    }
+                // Expandable Details
+                if !session.dwells.isEmpty || session.drinks.total > 0 || session.rating != nil {
+                    Divider()
                     
-                    // Drink breakdown
-                    VStack(spacing: 4) {
-                        if session.drinks.beer > 0 {
-                            drinkRow(icon: "🍺", name: "Beer", count: session.drinks.beer)
+                    VStack(spacing: 8) {
+                        // Dwell Type Breakdown (compact, single line)
+                        if !session.dwells.isEmpty {
+                            dwellTypeRow()
                         }
-                        if session.drinks.spirits > 0 {
-                            drinkRow(icon: "🥃", name: "Spirits", count: session.drinks.spirits)
+                        
+                        // Drinks (compact, single line)
+                        if session.drinks.total > 0 {
+                            drinksRow()
                         }
-                        if session.drinks.cocktails > 0 {
-                            drinkRow(icon: "🍹", name: "Cocktails", count: session.drinks.cocktails)
+                        
+                        // Rating
+                        if let rating = session.rating {
+                            ratingRow(rating: rating)
                         }
-                        if session.drinks.shots > 0 {
-                            drinkRow(icon: "🥃", name: "Shots", count: session.drinks.shots)
+                        
+                        // Revisits indicator
+                        let revisitCount = session.dwells.filter { $0.isRevisit }.count
+                        if revisitCount > 0 {
+                            revisitRow(count: revisitCount)
                         }
-                        if session.drinks.wine > 0 {
-                            drinkRow(icon: "🍷", name: "Wine", count: session.drinks.wine)
-                        }
-                        if session.drinks.other > 0 {
-                            drinkRow(icon: "🍻", name: "Other", count: session.drinks.other)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+            }
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .shadow(radius: 10)
+        }
+    }
+
+    // MARK: - Compact Stat Item
+    @ViewBuilder
+    private func compactStat(icon: String, value: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(.blue)
+            Text(value)
+                .font(.subheadline.bold())
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Dwell Type Row (Single Line)
+    @ViewBuilder
+    private func dwellTypeRow() -> some View {
+        let grouped = session.dwells.groupedByType()
+        
+        HStack(spacing: 6) {
+            Image(systemName: "chart.bar.fill")
+                .font(.caption2)
+                .foregroundColor(.purple)
+                .frame(width: 16)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach([DwellType.passthrough, .quickStop, .shortVisit, .longStop, .marathon], id: \.self) { type in
+                        if let count = grouped[type]?.count, count > 0 {
+                            HStack(spacing: 3) {
+                                Text(type.icon)
+                                    .font(.caption2)
+                                Text("\(count)")
+                                    .font(.caption2.bold())
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(typeColor(type).opacity(0.15))
+                            .cornerRadius(6)
                         }
                     }
                 }
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .cornerRadius(16)
-        .shadow(radius: 10)
+    }
+
+    // MARK: - Drinks Row (Single Line)
+    @ViewBuilder
+    private func drinksRow() -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "wineglass.fill")
+                .font(.caption2)
+                .foregroundColor(.orange)
+                .frame(width: 16)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    // Total
+                    HStack(spacing: 3) {
+                        Text("Total:")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("\(session.drinks.total)")
+                            .font(.caption2.bold())
+                            .foregroundColor(.orange)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.15))
+                    .cornerRadius(6)
+                    
+                    // Individual types (only if > 0)
+                    if session.drinks.beer > 0 {
+                        drinkBadge(icon: "🍺", count: session.drinks.beer)
+                    }
+                    if session.drinks.spirits > 0 {
+                        drinkBadge(icon: "🍾", count: session.drinks.spirits)
+                    }
+                    if session.drinks.cocktails > 0 {
+                        drinkBadge(icon: "🍹", count: session.drinks.cocktails)
+                    }
+                    if session.drinks.shots > 0 {
+                        drinkBadge(icon: "🥃", count: session.drinks.shots)
+                    }
+                    if session.drinks.wine > 0 {
+                        drinkBadge(icon: "🍷", count: session.drinks.wine)
+                    }
+                    if session.drinks.other > 0 {
+                        drinkBadge(icon: "🧃", count: session.drinks.other)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func drinkBadge(icon: String, count: Int) -> some View {
+        HStack(spacing: 2) {
+            Text(icon)
+                .font(.caption2)
+            Text("\(count)")
+                .font(.caption2.bold())
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(Color.gray.opacity(0.15))
+        .cornerRadius(6)
+    }
+
+    // MARK: - Rating Row
+    @ViewBuilder
+    private func ratingRow(rating: Int) -> some View {
+        HStack(spacing: 6) {
+            
+            HStack(spacing: 2) {
+                ForEach(0..<5) { index in
+                    Image(systemName: index < rating ? "star.fill" : "star")
+                        .font(.caption2)
+                        .foregroundColor(index < rating ? .yellow : .gray)
+                }
+            }
+            
+            Spacer()
+            
+            Text("Night Rating")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    // MARK: - Revisit Row
+    @ViewBuilder
+    private func revisitRow(count: Int) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.uturn.left.circle.fill")
+                .font(.caption2)
+                .foregroundColor(.orange)
+                .frame(width: 16)
+            
+            Text("Returned to \(count) venue\(count == 1 ? "" : "s")")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+    }
+
+    // MARK: - Helper Function
+    private func typeColor(_ type: DwellType) -> Color {
+        switch type {
+        case .passthrough: return .gray
+        case .quickStop: return .orange
+        case .shortVisit: return .blue
+        case .longStop: return .purple
+        case .marathon: return .pink
+        }
     }
     
     @ViewBuilder
@@ -685,135 +908,349 @@ struct MapSummaryView: View {
     
     @ViewBuilder
     private func dwellDetailOverlay(dwell: DwellPoint) -> some View {
-        VStack {
-            Spacer()
-            
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let placeName = dwellPlaceNames[dwell.id] {
-                            HStack {
-                                Text(placeName)
+        if #available(iOS 26.0, *) {
+            VStack {
+                Spacer()
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    // Header with venue name
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let placeName = dwellPlaceNames[dwell.id] {
+                                HStack(spacing: 6) {
+                                    Text(placeName)
+                                        .font(.headline)
+                                    
+                                    // Manual edit indicator
+                                    if dwell.isManuallySet {
+                                        Image(systemName: "pencil.circle.fill")
+                                            .foregroundColor(.blue)
+                                            .font(.caption)
+                                    }
+                                    
+                                    // Revisit indicator
+                                    if dwell.isRevisit {
+                                        Image(systemName: "arrow.uturn.left.circle.fill")
+                                            .foregroundColor(.orange)
+                                            .font(.caption)
+                                    }
+                                }
+                            } else {
+                                Text("Stop Details")
                                     .font(.headline)
-                                
-                                // Show indicator if manually set
-                                if dwell.isManuallySet {
-                                    Image(systemName: "pencil.circle.fill")
-                                        .foregroundColor(.blue)
+                            }
+                            
+                            // Dwell type and confidence in one line
+                            HStack(spacing: 8) {
+                                HStack(spacing: 3) {
+                                    Text(dwell.dwellType.icon)
+                                        .font(.caption2)
+                                    Text(dwell.dwellType.rawValue)
                                         .font(.caption)
                                 }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(typeColor(dwell.dwellType).opacity(0.15))
+                                .cornerRadius(6)
+                                
+                                HStack(spacing: 3) {
+                                    Text(dwell.confidence.icon)
+                                        .font(.caption2)
+                                    Text(dwell.confidence.rawValue)
+                                        .font(.caption)
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(confidenceColor(dwell.confidence).opacity(0.15))
+                                .cornerRadius(6)
                             }
-                        } else {
-                            Text("Stop Details")
-                                .font(.headline)
                         }
-                        Text("Stop Details")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Button {
+                            selectedDwell = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                                .font(.title3)
+                        }
                     }
                     
-                    Spacer()
+                    Divider()
                     
+                    // Time details - compact 2 column layout
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            detailRow(
+                                icon: "clock.fill",
+                                label: "Duration",
+                                value: formatDuration(dwell.duration),
+                                color: .blue
+                            )
+                            detailRow(
+                                icon: "arrow.right.circle.fill",
+                                label: "Arrived",
+                                value: dwell.startTime.formatted(date: .omitted, time: .shortened),
+                                color: .green
+                            )
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            detailRow(
+                                icon: "calendar",
+                                label: "Date",
+                                value: dwell.startTime.formatted(date: .abbreviated, time: .omitted),
+                                color: .purple
+                            )
+                            detailRow(
+                                icon: "arrow.left.circle.fill",
+                                label: "Departed",
+                                value: dwell.endTime.formatted(date: .omitted, time: .shortened),
+                                color: .red
+                            )
+                        }
+                    }
+                    
+                    // Revisit info banner (if applicable)
+                    if dwell.isRevisit {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.uturn.left.circle.fill")
+                                .foregroundColor(.orange)
+                            Text("You returned to this venue")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Spacer()
+                        }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(8)
+                    }
+                    
+                    Divider()
+                    
+                    // Edit venue button
                     Button {
+                        editingDwell = dwell
                         selectedDwell = nil
+                        showingVenueSelector = true
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                            .font(.title3)
+                        HStack {
+                            Image(systemName: "pencil.circle.fill")
+                            Text(dwell.isManuallySet ? "Change Venue" : "Correct Venue")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                        }
+                        .font(.subheadline.bold())
+                        .foregroundColor(.white)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                        .background(dwell.isManuallySet ? Color.blue : Color.purple)
+                        .cornerRadius(12)
                     }
                 }
-                
-                Divider()
-                
-                HStack {
-                    Image(systemName: "clock.fill")
-                        .foregroundColor(.blue)
-                    Text("Duration:")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(formatDuration(dwell.duration))
-                        .bold()
-                }
-                
-                HStack {
-                    Image(systemName: "calendar")
-                        .foregroundColor(.blue)
-                    Text("Arrived:")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(dwell.startTime, style: .time)
-                }
-                
-                HStack {
-                    Image(systemName: "calendar")
-                        .foregroundColor(.blue)
-                    Text("Departed:")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(dwell.endTime, style: .time)
-                }
-                
-                if let placeName = dwellPlaceNames[dwell.id] {
-                    HStack {
-                        Image(systemName: "mappin.circle.fill")
-                            .foregroundColor(.blue)
-                        Text("Location:")
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(placeName)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                } else {
-                    HStack {
-                        Image(systemName: "location.fill")
-                            .foregroundColor(.blue)
-                        Text("Coordinates:")
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(formatCoordinate(dwell.location))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Divider()
-                
-                // NEW: Edit Venue Button
-                Button {
-                    editingDwell = dwell
-                    selectedDwell = nil
-                    showingVenueSelector = true
-                } label: {
-                    HStack {
-                        Image(systemName: "pencil.circle.fill")
-                        Text(dwell.isManuallySet ? "Change Venue" : "Correct Venue")
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                    }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(dwell.isManuallySet ? Color.blue : Color.purple)
-                    .cornerRadius(12)
-                }
+                .padding()
+                .glassEffect(in: .rect)
+                .cornerRadius(16)
+                .shadow(radius: 20)
+                .padding()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .padding()
-            .background(.ultraThinMaterial)
-            .cornerRadius(16)
-            .shadow(radius: 20)
-            .padding()
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-        .background(
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    selectedDwell = nil
+            .background(
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        selectedDwell = nil
+                    }
+            )
+        } else {
+            VStack {
+                Spacer()
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    // Header with venue name
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let placeName = dwellPlaceNames[dwell.id] {
+                                HStack(spacing: 6) {
+                                    Text(placeName)
+                                        .font(.headline)
+                                    
+                                    // Manual edit indicator
+                                    if dwell.isManuallySet {
+                                        Image(systemName: "pencil.circle.fill")
+                                            .foregroundColor(.blue)
+                                            .font(.caption)
+                                    }
+                                    
+                                    // Revisit indicator
+                                    if dwell.isRevisit {
+                                        Image(systemName: "arrow.uturn.left.circle.fill")
+                                            .foregroundColor(.orange)
+                                            .font(.caption)
+                                    }
+                                }
+                            } else {
+                                Text("Stop Details")
+                                    .font(.headline)
+                            }
+                            
+                            // Dwell type and confidence in one line
+                            HStack(spacing: 8) {
+                                HStack(spacing: 3) {
+                                    Text(dwell.dwellType.icon)
+                                        .font(.caption2)
+                                    Text(dwell.dwellType.rawValue)
+                                        .font(.caption)
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(typeColor(dwell.dwellType).opacity(0.15))
+                                .cornerRadius(6)
+                                
+                                HStack(spacing: 3) {
+                                    Text(dwell.confidence.icon)
+                                        .font(.caption2)
+                                    Text(dwell.confidence.rawValue)
+                                        .font(.caption)
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(confidenceColor(dwell.confidence).opacity(0.15))
+                                .cornerRadius(6)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Button {
+                            selectedDwell = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                                .font(.title3)
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // Time details - compact 2 column layout
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            detailRow(
+                                icon: "clock.fill",
+                                label: "Duration",
+                                value: formatDuration(dwell.duration),
+                                color: .blue
+                            )
+                            detailRow(
+                                icon: "arrow.right.circle.fill",
+                                label: "Arrived",
+                                value: dwell.startTime.formatted(date: .omitted, time: .shortened),
+                                color: .green
+                            )
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            detailRow(
+                                icon: "calendar",
+                                label: "Date",
+                                value: dwell.startTime.formatted(date: .abbreviated, time: .omitted),
+                                color: .purple
+                            )
+                            detailRow(
+                                icon: "arrow.left.circle.fill",
+                                label: "Departed",
+                                value: dwell.endTime.formatted(date: .omitted, time: .shortened),
+                                color: .red
+                            )
+                        }
+                    }
+                    
+                    // Revisit info banner (if applicable)
+                    if dwell.isRevisit {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.uturn.left.circle.fill")
+                                .foregroundColor(.orange)
+                            Text("You returned to this venue")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Spacer()
+                        }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(8)
+                    }
+                    
+                    Divider()
+                    
+                    // Edit venue button
+                    Button {
+                        editingDwell = dwell
+                        selectedDwell = nil
+                        showingVenueSelector = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "pencil.circle.fill")
+                            Text(dwell.isManuallySet ? "Change Venue" : "Correct Venue")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                        }
+                        .font(.subheadline.bold())
+                        .foregroundColor(.white)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                        .background(dwell.isManuallySet ? Color.blue : Color.purple)
+                        .cornerRadius(12)
+                    }
                 }
-        )
+                .padding()
+                .background(.ultraThinMaterial)
+                .cornerRadius(16)
+                .shadow(radius: 20)
+                .padding()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            .background(
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        selectedDwell = nil
+                    }
+            )
+        }
+    }
+
+    // MARK: - Detail Row Helper
+    @ViewBuilder
+    private func detailRow(icon: String, label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(color)
+                .frame(width: 16)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text(value)
+                    .font(.caption.bold())
+            }
+        }
+    }
+    // 🆕 Helper function for confidence colors
+    private func confidenceColor(_ confidence: DwellConfidence) -> Color {
+        switch confidence {
+        case .high: return .green
+        case .medium: return .orange
+        case .low: return .red
+        case .estimated: return .purple
+        }
     }
 }
 

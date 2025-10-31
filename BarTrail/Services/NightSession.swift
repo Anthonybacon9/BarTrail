@@ -34,11 +34,11 @@ enum DrinkType: String, CaseIterable {
     var icon: String {
         switch self {
         case .beer: return "🍺"
-        case .spirits: return "🥃"
+        case .spirits: return "🍾"
         case .cocktails: return "🍹"
         case .shots: return "🥃"
         case .wine: return "🍷"
-        case .other: return "🍻"
+        case .other: return "🧃"
         }
     }
 }
@@ -83,6 +83,18 @@ class NightSession: Codable, Identifiable, ObservableObject {
         case .wine: drinks.wine += 1
         case .other: drinks.other += 1
         }
+        
+        // Update Live Activity immediately when drink added
+            if #available(iOS 16.2, *) {
+                DispatchQueue.main.async {
+                    LiveActivityManager.shared.updateActivity(
+                        distance: SessionManager.shared.currentSession?.totalDistance ?? 0,
+                        stops: SessionManager.shared.currentSession?.dwells.count ?? 0,
+                        drinks: self.drinks.total,
+                        elapsedTime: Date().timeIntervalSince(self.startTime)
+                    )
+                }
+            }
     }
     
     init(id: UUID = UUID(), startTime: Date = Date()) {

@@ -8,6 +8,7 @@ struct PhotoRouteOverlayView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
     @State private var routeOverlay: UIImage?
+    @State private var statsOverlay: UIImage?
     @State private var overlayOpacity: Double = 0.9
     @State private var overlayScale: CGFloat = 1.0
     @State private var overlayOffset: CGSize = .zero
@@ -21,6 +22,20 @@ struct PhotoRouteOverlayView: View {
     @State private var watermarkText: String = "BarTrail"
     @State private var watermarkPosition: WatermarkPosition = .bottomRight
     @State private var watermarkOpacity: Double = 0.8
+    
+    @State private var selectedOverlayType: OverlayType = .route
+    
+    enum OverlayType: String, CaseIterable {
+        case route = "Route Map"
+        case stats = "Stats Grid"
+        
+        var icon: String {
+            switch self {
+            case .route: return "map"
+            case .stats: return "chart.bar.fill"
+            }
+        }
+    }
     
     enum WatermarkPosition: CaseIterable {
         case topLeft, topRight, bottomLeft, bottomRight, center
@@ -36,85 +51,29 @@ struct PhotoRouteOverlayView: View {
         }
     }
     
-    @State private var viewSize: CGSize = .zero
-    
     var body: some View {
         NavigationView {
             ZStack {
                 if let baseImage = selectedImage {
-                    GeometryReader { geometry in
-                        let baseImageAspect = (selectedImage?.size.width ?? 1) / (selectedImage?.size.height ?? 1)
-                        let viewAspect = geometry.size.width / geometry.size.height
-                        
-                        let actualDisplaySize: CGSize = {
-                            if baseImageAspect > viewAspect {
-                                return CGSize(
-                                    width: geometry.size.width,
-                                    height: geometry.size.width / baseImageAspect
-                                )
-                            } else {
-                                return CGSize(
-                                    width: geometry.size.height * baseImageAspect,
-                                    height: geometry.size.height
-                                )
-                            }
-                        }()
-                        
-                        ZStack {
-                            Image(uiImage: baseImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: actualDisplaySize.width, height: actualDisplaySize.height)
-                            
-                            if let overlay = routeOverlay {
-                                Image(uiImage: overlay)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: actualDisplaySize.width, height: actualDisplaySize.height)
-                                    .opacity(overlayOpacity)
-                                    .scaleEffect(overlayScale)
-                                    .offset(overlayOffset)
-                                    .gesture(
-                                        DragGesture()
-                                            .onChanged { value in
-                                                overlayOffset = CGSize(
-                                                    width: value.translation.width,
-                                                    height: value.translation.height
-                                                )
-                                            }
-                                    )
-                                    .gesture(
-                                        MagnificationGesture()
-                                            .onChanged { value in
-                                                overlayScale = value
-                                            }
-                                    )
-                            }
-                        }
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .onAppear {
-                            viewSize = actualDisplaySize
-                        }
-                        .onChange(of: geometry.size) { _, _ in
-                            let newDisplaySize: CGSize
-                            if baseImageAspect > viewAspect {
-                                newDisplaySize = CGSize(
-                                    width: geometry.size.width,
-                                    height: geometry.size.width / baseImageAspect
-                                )
-                            } else {
-                                newDisplaySize = CGSize(
-                                    width: geometry.size.height * baseImageAspect,
-                                    height: geometry.size.height
-                                )
-                            }
-                            viewSize = newDisplaySize
-                        }
-                    }
+                    // Canvas view that maintains aspect ratios (BEHIND)
+                    CanvasEditorView(
+                        baseImage: baseImage,
+                        overlayImage: currentOverlay,
+                        overlayOpacity: $overlayOpacity,
+                        overlayScale: $overlayScale,
+                        overlayOffset: $overlayOffset
+                    )
                     .ignoresSafeArea()
                     
-                    VStack {
+                    // UI overlays (IN FRONT)
+                    VStack(spacing: 0) {
+                        // Overlay type picker at top
+                        overlayTypePicker()
+                            .padding(.top, 8)
+                        
                         Spacer()
+                        
+                        // Controls at bottom
                         controlsPanel()
                             .padding()
                     }
@@ -141,6 +100,11 @@ struct PhotoRouteOverlayView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
+                        // Clean up memory before dismissing
+                        selectedImage = nil
+                        routeOverlay = nil
+                        statsOverlay = nil
+                        compositeImage = nil
                         dismiss()
                     }
                 }
@@ -165,67 +129,141 @@ struct PhotoRouteOverlayView: View {
                 Text("Your route overlay has been saved to your photo library.")
             }
         }
-        .onAppear {
-            loadPlaceNames()
+        .task {
+            await loadPlaceNames()
             generateRouteOverlay()
+            generateStatsOverlay()
+        }
+        .onDisappear {
+            // Critical: Clean up all large images when view disappears
+            selectedImage = nil
+            routeOverlay = nil
+            statsOverlay = nil
+            compositeImage = nil
         }
     }
     
-    // MARK: - Generate Composite
+    // MARK: - Current Overlay
+    
+    private var currentOverlay: UIImage? {
+        switch selectedOverlayType {
+        case .route:
+            return routeOverlay
+        case .stats:
+            return statsOverlay
+        }
+    }
+    
+    // MARK: - Overlay Type Picker
+    
+    @ViewBuilder
+    private func overlayTypePicker() -> some View {
+        HStack(spacing: 12) {
+            ForEach(OverlayType.allCases, id: \.self) { type in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedOverlayType = type
+                        // Reset position when switching overlays
+                        overlayScale = 1.0
+                        overlayOffset = .zero
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: type.icon)
+                            .font(.caption)
+                        Text(type.rawValue)
+                            .font(.subheadline.bold())
+                    }
+                    .foregroundColor(selectedOverlayType == type ? .white : .primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        selectedOverlayType == type
+                            ? Color.blue
+                            : Color.white.opacity(0.8)
+                    )
+                    .cornerRadius(20)
+                    .shadow(radius: 3)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    // MARK: - Generate Composite (MEMORY OPTIMIZED)
     
     private func generateAndShareComposite() {
         guard let baseImage = selectedImage,
-              let overlay = routeOverlay else { return }
+              let overlay = currentOverlay else { return }
         
         isGeneratingComposite = true
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let imageSize = baseImage.size
-            
-            let overlayAspect = overlay.size.width / overlay.size.height
-            let viewAspect = viewSize.width / viewSize.height
-            
-            var overlayDisplaySize = viewSize
-            if overlayAspect > viewAspect {
-                overlayDisplaySize.height = viewSize.width / overlayAspect
-            } else {
-                overlayDisplaySize.width = viewSize.height * overlayAspect
-            }
-            
-            let overlayScaleFactor = overlay.size.width / overlayDisplaySize.width
-            
-            let overlayImageOffset = CGSize(
-                width: overlayOffset.width * overlayScaleFactor,
-                height: overlayOffset.height * overlayScaleFactor
-            )
-            
-            let baseScaleFactor = imageSize.width / viewSize.width
-            let finalOverlaySize = CGSize(
-                width: overlay.size.width * overlayScale * baseScaleFactor / overlayScaleFactor,
-                height: overlay.size.height * overlayScale * baseScaleFactor / overlayScaleFactor
-            )
-            
-            let renderer = UIGraphicsImageRenderer(size: imageSize)
-                    
-            let composite = renderer.image { context in
-                baseImage.draw(in: CGRect(origin: .zero, size: imageSize))
+            // Use autoreleasepool to immediately free memory after generation
+            let composite = autoreleasepool { () -> UIImage? in
+                let baseSize = baseImage.size
+                let overlaySize = overlay.size
                 
-                let overlayOrigin = CGPoint(
-                    x: (imageSize.width - finalOverlaySize.width) / 2 + (overlayImageOffset.width * baseScaleFactor),
-                    y: (imageSize.height - finalOverlaySize.height) / 2 + (overlayImageOffset.height * baseScaleFactor)
+                // Limit maximum output size to prevent memory issues
+                let maxDimension: CGFloat = 4096 // 4K max
+                var finalSize = baseSize
+                
+                if baseSize.width > maxDimension || baseSize.height > maxDimension {
+                    let scale = min(maxDimension / baseSize.width, maxDimension / baseSize.height)
+                    finalSize = CGSize(width: baseSize.width * scale, height: baseSize.height * scale)
+                }
+                
+                let scaledOverlaySize = CGSize(
+                    width: overlaySize.width * overlayScale,
+                    height: overlaySize.height * overlayScale
                 )
                 
-                let overlayRect = CGRect(origin: overlayOrigin, size: finalOverlaySize)
+                let imageScale = finalSize.width / UIScreen.main.bounds.width
+                let scaledOffset = CGSize(
+                    width: overlayOffset.width * imageScale,
+                    height: overlayOffset.height * imageScale
+                )
                 
-                overlay.draw(in: overlayRect, blendMode: .normal, alpha: overlayOpacity)
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1.0 // Use 1.0 scale for exact pixel control
+                format.opaque = true // More efficient if no transparency needed
                 
-                drawWatermark(in: context, size: imageSize)
+                let renderer = UIGraphicsImageRenderer(size: finalSize, format: format)
+                
+                return renderer.image { context in
+                    // Draw base image (scaled if needed)
+                    if finalSize != baseSize {
+                        baseImage.draw(in: CGRect(origin: .zero, size: finalSize), blendMode: .normal, alpha: 1.0)
+                    } else {
+                        baseImage.draw(in: CGRect(origin: .zero, size: finalSize))
+                    }
+                    
+                    // Calculate overlay position
+                    let overlayOrigin = CGPoint(
+                        x: (finalSize.width - scaledOverlaySize.width) / 2 + scaledOffset.width,
+                        y: (finalSize.height - scaledOverlaySize.height) / 2 + scaledOffset.height
+                    )
+                    
+                    let overlayRect = CGRect(origin: overlayOrigin, size: scaledOverlaySize)
+                    overlay.draw(in: overlayRect, blendMode: .normal, alpha: overlayOpacity)
+                    
+                    // Draw watermark
+                    self.drawWatermark(in: context, size: finalSize)
+                }
             }
             
-            UIImageWriteToSavedPhotosAlbum(composite, nil, nil, nil)
+            guard let finalComposite = composite else {
+                DispatchQueue.main.async {
+                    self.isGeneratingComposite = false
+                }
+                return
+            }
+            
+            // Save to photos
+            UIImageWriteToSavedPhotosAlbum(finalComposite, nil, nil, nil)
             
             DispatchQueue.main.async {
-                self.compositeImage = composite
+                self.compositeImage = finalComposite
                 self.isGeneratingComposite = false
                 self.showSaveSuccess = true
                 self.showingShareSheet = true
@@ -241,15 +279,16 @@ struct PhotoRouteOverlayView: View {
         let ctx = context.cgContext
         let text = NSString(string: watermarkText)
         
+        let fontSize: CGFloat = size.width * 0.025
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 24, weight: .bold),
+            .font: UIFont.systemFont(ofSize: fontSize, weight: .bold),
             .foregroundColor: UIColor.white.withAlphaComponent(watermarkOpacity),
             .strokeColor: UIColor.black.withAlphaComponent(watermarkOpacity * 0.7),
             .strokeWidth: -1.0
         ]
         
         let textSize = text.size(withAttributes: attributes)
-        let padding: CGFloat = 20
+        let padding: CGFloat = size.width * 0.02
         
         let textRect: CGRect = {
             switch watermarkPosition {
@@ -277,7 +316,7 @@ struct PhotoRouteOverlayView: View {
     private func controlsPanel() -> some View {
         VStack(spacing: 16) {
             HStack {
-                Image(systemName: "opacity")
+                Image(systemName: "circle.lefthalf.filled") // Changed from 'opacity'
                     .foregroundColor(.white)
                 Slider(value: $overlayOpacity, in: 0...1)
                     .tint(.white)
@@ -374,50 +413,104 @@ struct PhotoRouteOverlayView: View {
         .padding()
     }
     
-    // MARK: - Generate Route Overlay (FIXED)
+    // MARK: - Generate Route Overlay (MEMORY OPTIMIZED)
     
     private func generateRouteOverlay() {
         DispatchQueue.global(qos: .userInitiated).async {
-            // FIXED: Pass dwellPlaceNames to respect manual selections
-            if let overlay = RouteOverlayGenerator.shared.generateRouteWithOutline(
-                from: session,
-                placeNames: dwellPlaceNames
-            ) {
-                DispatchQueue.main.async {
-                    self.routeOverlay = overlay
-                }
+            // Generate at reasonable size (1080x1080 is plenty for overlay)
+            let overlay = autoreleasepool {
+                RouteOverlayGenerator.shared.generateRouteWithOutline(
+                    from: session,
+                    placeNames: dwellPlaceNames,
+                    size: CGSize(width: 1080, height: 1080)
+                )
+            }
+            
+            DispatchQueue.main.async {
+                self.routeOverlay = overlay
             }
         }
     }
     
-    // MARK: - Load Photo
+    // MARK: - Generate Stats Overlay
+    
+    private func generateStatsOverlay() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let overlay = autoreleasepool {
+                StatsOverlayGenerator.shared.generateStatsGrid(
+                    from: session,
+                    size: CGSize(width: 1080, height: 1080)
+                )
+            }
+            
+            DispatchQueue.main.async {
+                self.statsOverlay = overlay
+            }
+        }
+    }
+    
+    // MARK: - Load Photo (MEMORY OPTIMIZED)
     
     private func loadPhoto(from item: PhotosPickerItem?) {
         guard let item = item else { return }
         
         Task {
-            if let data = try? await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
-                await MainActor.run {
-                    self.selectedImage = image
-                    self.selectedPhoto = nil
+            if let data = try? await item.loadTransferable(type: Data.self) {
+                // Decompress image on background thread
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        autoreleasepool {
+                            if let image = UIImage(data: data) {
+                                // Downscale if image is huge (> 4K)
+                                let maxDimension: CGFloat = 4096
+                                if image.size.width > maxDimension || image.size.height > maxDimension {
+                                    let scale = min(maxDimension / image.size.width, maxDimension / image.size.height)
+                                    let newSize = CGSize(
+                                        width: image.size.width * scale,
+                                        height: image.size.height * scale
+                                    )
+                                    
+                                    let format = UIGraphicsImageRendererFormat()
+                                    format.scale = 1.0
+                                    let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
+                                    let resized = renderer.image { _ in
+                                        image.draw(in: CGRect(origin: .zero, size: newSize))
+                                    }
+                                    
+                                    DispatchQueue.main.async {
+                                        self.selectedImage = resized
+                                        self.selectedPhoto = nil
+                                        continuation.resume()
+                                    }
+                                } else {
+                                    DispatchQueue.main.async {
+                                        self.selectedImage = image
+                                        self.selectedPhoto = nil
+                                        continuation.resume()
+                                    }
+                                }
+                            } else {
+                                DispatchQueue.main.async {
+                                    continuation.resume()
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
     
-    // MARK: - Load Place Names (FIXED TO RESPECT MANUAL SELECTIONS)
+    // MARK: - Load Place Names
 
     private func loadPlaceNames() {
         Task {
             for dwell in session.dwells {
-                // FIXED: Use displayName which respects manual override
                 if let displayName = dwell.displayName {
                     await MainActor.run {
                         dwellPlaceNames[dwell.id] = displayName
                     }
                 } else {
-                    // Only fetch if no name exists at all
                     if let placeName = await GeocodingService.shared.getBestVenueName(for: dwell.location) {
                         await MainActor.run {
                             dwellPlaceNames[dwell.id] = placeName
@@ -425,7 +518,6 @@ struct PhotoRouteOverlayView: View {
                     }
                 }
             }
-            // Regenerate overlay once place names are loaded
             await MainActor.run {
                 generateRouteOverlay()
             }
@@ -433,44 +525,80 @@ struct PhotoRouteOverlayView: View {
     }
 }
 
-// MARK: - Photo Thumbnail
-struct PhotoThumbnail: View {
-    let photo: PhotosPickerItem
-    let isSelected: Bool
-    let onTap: () -> Void
+// MARK: - Canvas Editor View (MEMORY EFFICIENT)
+
+struct CanvasEditorView: View {
+    let baseImage: UIImage
+    let overlayImage: UIImage?
     
-    @State private var thumbnailImage: UIImage?
+    @Binding var overlayOpacity: Double
+    @Binding var overlayScale: CGFloat
+    @Binding var overlayOffset: CGSize
+    
+    @State private var dragOffset: CGSize = .zero
+    @State private var currentScale: CGFloat = 1.0
     
     var body: some View {
-        Button(action: onTap) {
-            Group {
-                if let image = thumbnailImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    Color.gray.opacity(0.3)
-                }
-            }
-            .frame(width: 80, height: 80)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 3)
-            )
-        }
-        .task {
-            await loadThumbnail()
+        GeometryReader { geometry in
+            canvasContent(containerSize: geometry.size)
         }
     }
     
-    private func loadThumbnail() async {
-        if let data = try? await photo.loadTransferable(type: Data.self),
-           let image = UIImage(data: data) {
-            await MainActor.run {
-                self.thumbnailImage = image
+    @ViewBuilder
+    private func canvasContent(containerSize: CGSize) -> some View {
+        let baseAspect = baseImage.size.width / baseImage.size.height
+        let viewAspect = containerSize.width / containerSize.height
+        
+        let baseDisplaySize: CGSize = {
+            if baseAspect > viewAspect {
+                return CGSize(
+                    width: containerSize.width,
+                    height: containerSize.width / baseAspect
+                )
+            } else {
+                return CGSize(
+                    width: containerSize.height * baseAspect,
+                    height: containerSize.height
+                )
+            }
+        }()
+        
+        let displayScale = baseDisplaySize.width / baseImage.size.width
+        
+        ZStack {
+            Image(uiImage: baseImage)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: baseDisplaySize.width, height: baseDisplaySize.height)
+            
+            if let overlay = overlayImage {
+                let overlayDisplaySize = CGSize(
+                    width: overlay.size.width * displayScale,
+                    height: overlay.size.height * displayScale
+                )
+                
+                Image(uiImage: overlay)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: overlayDisplaySize.width, height: overlayDisplaySize.height)
+                    .scaleEffect(overlayScale)
+                    .offset(overlayOffset)
+                    .opacity(overlayOpacity)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                overlayOffset = value.translation
+                            }
+                    )
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                overlayScale = value
+                            }
+                    )
             }
         }
+        .frame(width: containerSize.width, height: containerSize.height)
     }
 }
 

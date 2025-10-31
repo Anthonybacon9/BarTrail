@@ -34,7 +34,15 @@ class LiveActivityManager: ObservableObject {
     
     @Published var currentActivity: Activity<BarTrailActivityAttributes>?
     
+    // Track last update to avoid excessive updates
+        private var lastUpdateTime: Date?
+        private var lastDistance: Double = 0
+        private var lastStops: Int = 0
+        private var lastDrinks: Int = 0
+    
     private init() {}
+    
+    
     
     // MARK: - Start Live Activity
     
@@ -82,31 +90,51 @@ class LiveActivityManager: ObservableObject {
     // MARK: - Update Live Activity
     
     func updateActivity(distance: Double, stops: Int, drinks: Int, elapsedTime: TimeInterval) {
-        guard let activity = currentActivity else {
-            print("⚠️ No active Live Activity to update")
-            return
-        }
-        
-        Task {
-            let updatedState = BarTrailActivityAttributes.ContentState(
-                startTime: activity.content.state.startTime,
-                currentDistance: distance,
-                currentStops: stops,
-                currentDrinks: drinks,
-                elapsedTime: elapsedTime,
-                lastUpdateTime: Date()
-            )
+            guard let activity = currentActivity else {
+                print("⚠️ No active Live Activity to update")
+                return
+            }
             
-            await activity.update(
-                ActivityContent(
-                    state: updatedState,
-                    staleDate: Date().addingTimeInterval(60) // Stale after 1 minute
+            // Only update if something meaningful changed
+            let distanceChanged = abs(distance - lastDistance) >= 50  // 50+ meters
+            let stopsChanged = stops != lastStops
+            let drinksChanged = drinks != lastDrinks
+            
+            // Or if it's been 2+ minutes since last update
+            let timeSinceLastUpdate = lastUpdateTime?.timeIntervalSinceNow ?? -999
+            let timeForUpdate = timeSinceLastUpdate < -120  // 2 minutes
+            
+            guard distanceChanged || stopsChanged || drinksChanged || timeForUpdate else {
+                // print("⏭️ Skipping Live Activity update (no significant changes)")
+                return
+            }
+            
+            Task {
+                let updatedState = BarTrailActivityAttributes.ContentState(
+                    startTime: activity.content.state.startTime,
+                    currentDistance: distance,
+                    currentStops: stops,
+                    currentDrinks: drinks,
+                    elapsedTime: elapsedTime,
+                    lastUpdateTime: Date()
                 )
-            )
-            
-            print("📱 Live Activity updated: \(formatDistance(distance)), \(stops) stops, \(drinks) drinks, \(formatDuration(elapsedTime))")
+                
+                await activity.update(
+                    ActivityContent(
+                        state: updatedState,
+                        staleDate: Date().addingTimeInterval(180) // Stale after 3 minutes (was 1)
+                    )
+                )
+                
+                // Update tracking
+                lastDistance = distance
+                lastStops = stops
+                lastDrinks = drinks
+                lastUpdateTime = Date()
+                
+                print("📱 Live Activity updated: \(formatDistance(distance)), \(stops) stops, \(drinks) drinks, \(formatDuration(elapsedTime))")
+            }
         }
-    }
     
     // MARK: - End Live Activity (UPDATED - immediately dismisses)
     
