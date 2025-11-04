@@ -122,23 +122,23 @@ struct BarTrailLiveActivity: Widget {
                     .background(Color.white.opacity(0.3))
                     .frame(height: 40)
                 
-//                statColumn(
-//                    value: formatDistance(context.state.currentDistance),
-//                    label: "Distance",
-//                    icon: "figure.walk",
-//                    color: Color.blue
-//                )
+                statColumn(
+                    value: formatDistance(context.state.currentDistance),
+                    label: "Distance",
+                    icon: "figure.walk",
+                    color: Color.blue
+                )
 //                
 //                Divider()
 //                    .background(Color.white.opacity(0.3))
 //                    .frame(height: 40)
                 
-                statColumn(
-                    value: "\(context.state.currentStops)",
-                    label: "Stops",
-                    icon: "mappin.circle.fill",
-                    color: Color.purple
-                )
+//                statColumn(
+//                    value: "\(context.state.currentStops)",
+//                    label: "Stops",
+//                    icon: "mappin.circle.fill",
+//                    color: Color.purple
+//                )
                 
                 if context.state.currentDrinks > 0 {
                     Divider()
@@ -241,13 +241,13 @@ struct BarTrailLiveActivity: Widget {
                 color: .blue
             )
             
-            // Stops
-            expandedStat(
-                icon: "mappin.circle.fill",
-                value: "\(context.state.currentStops)",
-                label: "Stops",
-                color: .purple
-            )
+//            // Stops
+//            expandedStat(
+//                icon: "mappin.circle.fill",
+//                value: "\(context.state.currentStops)",
+//                label: "Stops",
+//                color: .purple
+//            )
             
             // Drinks (if any)
             if context.state.currentDrinks > 0 {

@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import Photos
 
 struct PhotoRouteOverlayView: View {
     let session: NightSession
@@ -24,6 +25,7 @@ struct PhotoRouteOverlayView: View {
     @State private var watermarkOpacity: Double = 0.8
     
     @State private var selectedOverlayType: OverlayType = .route
+    @State private var showingDateMismatchAlert = false
     
     enum OverlayType: String, CaseIterable {
         case route = "Route Map"
@@ -127,6 +129,16 @@ struct PhotoRouteOverlayView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Your route overlay has been saved to your photo library.")
+            }
+            .alert("Photo Not From This Night", isPresented: $showingDateMismatchAlert) {
+                Button("Choose Another", role: .cancel) {
+                    selectedImage = nil
+                }
+                Button("Use Anyway", role: .destructive) {
+                    // Allow them to proceed
+                }
+            } message: {
+                Text("This photo wasn't taken during your night out. For best results, choose a photo from \(formatSessionDateRange()).")
             }
         }
         .task {
@@ -389,7 +401,7 @@ struct PhotoRouteOverlayView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
             
-            PhotosPicker(selection: $selectedPhoto, matching: .images) {
+            PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
                 if #available(iOS 26.0, *) {
                     Label("Choose Photo", systemImage: "photo.on.rectangle")
                         .font(.headline)
@@ -449,12 +461,28 @@ struct PhotoRouteOverlayView: View {
         }
     }
     
-    // MARK: - Load Photo (MEMORY OPTIMIZED)
+    // MARK: - Load Photo (MEMORY OPTIMIZED + DATE VALIDATION)
     
     private func loadPhoto(from item: PhotosPickerItem?) {
         guard let item = item else { return }
         
         Task {
+            // Get the asset identifier and check date
+            if let assetIdentifier = item.itemIdentifier {
+                let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetIdentifier], options: nil)
+                if let asset = fetchResult.firstObject,
+                   let creationDate = asset.creationDate {
+                    if !isPhotoFromSession(photoDate: creationDate) {
+                        await MainActor.run {
+                            showingDateMismatchAlert = true
+                            selectedPhoto = nil
+                        }
+                        return
+                    }
+                }
+            }
+            
+            // Load the actual image data
             if let data = try? await item.loadTransferable(type: Data.self) {
                 // Decompress image on background thread
                 await withCheckedContinuation { continuation in
@@ -499,6 +527,33 @@ struct PhotoRouteOverlayView: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Photo Date Validation
+    
+    private func isPhotoFromSession(photoDate: Date) -> Bool {
+        let sessionStart = session.startTime
+        let sessionEnd = session.endTime ?? Date()
+        
+        // Allow 1 hour before and after for flexibility
+        let bufferTime: TimeInterval = 3600
+        let startWithBuffer = sessionStart.addingTimeInterval(-bufferTime)
+        let endWithBuffer = sessionEnd.addingTimeInterval(bufferTime)
+        
+        return photoDate >= startWithBuffer && photoDate <= endWithBuffer
+    }
+    
+    private func formatSessionDateRange() -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        
+        let start = formatter.string(from: session.startTime)
+        if let end = session.endTime {
+            let endStr = formatter.string(from: end)
+            return "\(start) - \(endStr)"
+        }
+        return start
     }
     
     // MARK: - Load Place Names

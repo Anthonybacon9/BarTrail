@@ -49,9 +49,13 @@ class NightSession: Codable, Identifiable, ObservableObject {
     let startTime: Date
     @Published var endTime: Date?
     @Published var route: [CLLocation]
+    private var routeBuffer: [CLLocation] = [] // Buffer for unsimplified points
+    private let bufferLimit = 50 // Simplify every 50 points
     @Published var dwells: [DwellPoint]
     @Published var rating: Int? // 1-5 star rating
     @Published var drinks: DrinkCount = DrinkCount()
+    
+    
     
     var isActive: Bool {
         endTime == nil
@@ -110,7 +114,24 @@ class NightSession: Codable, Identifiable, ObservableObject {
         endTime = Date()
     }
     
+//    func finalizeRoute(skipSimplification: Bool = false) {
+//        if !routeBuffer.isEmpty {
+//            if skipSimplification {
+//                // For tests: don't simplify, just move buffer to route
+//                route.append(contentsOf: routeBuffer)
+//            } else {
+//                // For production: simplify
+//                let simplified = RouteSimplifier.simplify(locations: routeBuffer, tolerance: 15.0)
+//                route.append(contentsOf: simplified.dropFirst())
+//            }
+//            routeBuffer.removeAll()
+//        }
+//    }
+    
+//    var isTestMode = false  // Add this property
+
     func addLocation(_ location: CLLocation) {
+        // Just append - no buffering, no simplification
         route.append(location)
     }
     

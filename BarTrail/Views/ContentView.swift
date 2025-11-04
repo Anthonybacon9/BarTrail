@@ -1,4 +1,3 @@
-
 import SwiftUI
 import CoreLocation
 import Combine
@@ -108,6 +107,17 @@ struct ContentView: View {
                 }
                 
                 VStack(spacing: 0) {
+                    
+#if DEBUG
+                    Button("🧪 Run Gym Test") {
+                        Task {
+                            await SessionManager.shared.runAllTests()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding()
+#endif
+                    
                     // Top status bar
                     authorizationStatusView()
                         .padding(.top, 20)
@@ -188,26 +198,26 @@ struct ContentView: View {
                     GridItem(.flexible()),
                     GridItem(.flexible())
                 ], spacing: 24) {
-//                    statBox(
-//                        value: formatDistance(session.totalDistance),
-//                        label: "Distance",
-//                        icon: "figure.walk",
-//                        color: .blue
-//                    )
-                    
                     statBox(
-                        value: "\(session.dwells.count)",
-                        label: "Stops",
-                        icon: "mappin.circle.fill",
-                        color: .purple
+                        value: formatDistance(session.totalDistance),
+                        label: "Distance",
+                        icon: "figure.walk",
+                        color: .blue
                     )
-//                    
-//                    statBox(
-//                        value: "\(session.route.count)",
-//                        label: "Locations",
-//                        icon: "location.fill",
-//                        color: .green
-//                    )
+                    
+                    //                    statBox(
+                    //                        value: "\(session.dwells.count)",
+                    //                        label: "Stops",
+                    //                        icon: "mappin.circle.fill",
+                    //                        color: .purple
+                    //                    )
+                    //
+                    //                    statBox(
+                    //                        value: "\(session.route.count)",
+                    //                        label: "Locations",
+                    //                        icon: "location.fill",
+                    //                        color: .green
+                    //                    )
                     
                     statBox(
                         value: "\(session.drinks.total)",
@@ -245,7 +255,7 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .bottom) {
-                BarTrail.actionButton(action: handleMainAction, color: .red, color2: nil, text: "✋ Finish Night", img: nil)
+            BarTrail.actionButton(action: handleMainAction, color: .red, color2: nil, text: "✋ Finish Night", img: nil)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
         }
@@ -441,7 +451,7 @@ struct ContentView: View {
             .cornerRadius(16)
         }
     }
-
+    
     @ViewBuilder
     private func summaryStatRow(icon: String, label: String, value: String, color: Color) -> some View {
         HStack(spacing: 16) {
@@ -467,7 +477,7 @@ struct ContentView: View {
         .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(12)
     }
-
+    
     @ViewBuilder
     private func stravaStyleDrinkButtons(session: NightSession) -> some View {
         LazyVGrid(columns: [
@@ -480,7 +490,7 @@ struct ContentView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private func stravaStyleDrinkButton(for type: DrinkType, session: NightSession) -> some View {
         Button {
@@ -547,7 +557,7 @@ struct ContentView: View {
         }
         .padding(.top, 8)
     }
-
+    
     // NEW: Add this function after drinkCounterButtons
     @ViewBuilder
     private func drinkButton(for type: DrinkType, session: NightSession) -> some View {
@@ -591,7 +601,7 @@ struct ContentView: View {
             )
         }
     }
-
+    
     // NEW: Helper function to get drink count
     private func getDrinkCount(for type: DrinkType, session: NightSession) -> Int {
         switch type {
@@ -674,22 +684,22 @@ struct ContentView: View {
             .background(Color.white.opacity(0.1))
             .cornerRadius(12)
             
-//            Button {
-//                showingSummary = true
-//            } label: {
-//                HStack {
-//                    Image(systemName: "map.fill")
-//                    Text("View Map")
-//                }
-//                .font(.subheadline.bold())
-//                .foregroundColor(.white)
-//                .frame(maxWidth: .infinity)
-//                .padding(.vertical, 12)
-//                .background(
-//                    LinearGradient(colors: [.green, .blue], startPoint: .leading, endPoint: .trailing)
-//                )
-//                .cornerRadius(12)
-//            }
+            //            Button {
+            //                showingSummary = true
+            //            } label: {
+            //                HStack {
+            //                    Image(systemName: "map.fill")
+            //                    Text("View Map")
+            //                }
+            //                .font(.subheadline.bold())
+            //                .foregroundColor(.white)
+            //                .frame(maxWidth: .infinity)
+            //                .padding(.vertical, 12)
+            //                .background(
+            //                    LinearGradient(colors: [.green, .blue], startPoint: .leading, endPoint: .trailing)
+            //                )
+            //                .cornerRadius(12)
+            //            }
         }
         .padding()
         .frame(maxWidth: .infinity)
@@ -698,30 +708,30 @@ struct ContentView: View {
     
     // MARK: - Action Button
     
-//    @ViewBuilder
-//    private func actionButton() -> some View {
-//        if sessionManager.isTracking {
-//            // Stop Night button
-//            BarTrail.actionButton(action: handleMainAction, color: Color.red, color2: nil, text: "Stop Night", img: nil)
-//        } else if let session = sessionManager.currentSession, !session.isActive {
-//            // View Map + Start New Night buttons
-//            VStack() {
-//                if #available(iOS 26.0, *) {
-//                    GlassEffectContainer {
-//                        BarTrail.actionButton(action: showMapEnable, color: Color.teal, color2: nil, text: "Show Map 🗺️", img: nil)
-//                        
-//                        BarTrail.actionButton(action: handleMainAction, color: Color.barTrailSecondary, color2: nil, text: "Start New Night 🥳", img: nil)
-//                    }
-//                } else {
-//                    BarTrail.actionButton(action: showMapEnable, color: Color.teal, color2: nil, text: "Show Map 🗺️", img: nil)
-//                    BarTrail.actionButton(action: handleMainAction, color: Color.barTrailSecondary, color2: nil, text: "Start New Night 🥳", img: nil)
-//                }
-//            }
-//        } else {
-//            // Start Night button
-//            BarTrail.actionButton(action: handleMainAction, color: Color.barTrailPrimary, color2: nil, text: "\(startPhrases.randomElement() ?? "Start")", img: nil)
-//        }
-//    }
+    //    @ViewBuilder
+    //    private func actionButton() -> some View {
+    //        if sessionManager.isTracking {
+    //            // Stop Night button
+    //            BarTrail.actionButton(action: handleMainAction, color: Color.red, color2: nil, text: "Stop Night", img: nil)
+    //        } else if let session = sessionManager.currentSession, !session.isActive {
+    //            // View Map + Start New Night buttons
+    //            VStack() {
+    //                if #available(iOS 26.0, *) {
+    //                    GlassEffectContainer {
+    //                        BarTrail.actionButton(action: showMapEnable, color: Color.teal, color2: nil, text: "Show Map 🗺️", img: nil)
+    //
+    //                        BarTrail.actionButton(action: handleMainAction, color: Color.barTrailSecondary, color2: nil, text: "Start New Night 🥳", img: nil)
+    //                    }
+    //                } else {
+    //                    BarTrail.actionButton(action: showMapEnable, color: Color.teal, color2: nil, text: "Show Map 🗺️", img: nil)
+    //                    BarTrail.actionButton(action: handleMainAction, color: Color.barTrailSecondary, color2: nil, text: "Start New Night 🥳", img: nil)
+    //                }
+    //            }
+    //        } else {
+    //            // Start Night button
+    //            BarTrail.actionButton(action: handleMainAction, color: Color.barTrailPrimary, color2: nil, text: "\(startPhrases.randomElement() ?? "Start")", img: nil)
+    //        }
+    //    }
     
     // MARK: - Authorization Status
     
@@ -822,7 +832,7 @@ struct ContentView: View {
             sessionManager.objectWillChange.send()
         }
     }
-
+    
     private func stopLiveUpdates() {
         updateTimer?.invalidate()
         updateTimer = nil
@@ -963,3 +973,4 @@ struct TemporaryFireworks: View {
 #Preview {
     ContentView()
 }
+

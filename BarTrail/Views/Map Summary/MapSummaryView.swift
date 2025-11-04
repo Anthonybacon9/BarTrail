@@ -18,6 +18,10 @@ struct MapSummaryView: View {
     @State private var showUpgrade = false
     @State private var showingDeleteAlert = false
     
+    @State private var simplifiedRoute: [CLLocationCoordinate2D] = []
+    @State private var isSimplifyingRoute = false
+
+    
     // Add these for screenshot functionality
     @State private var showingScreenshotSheet = false
     @State private var screenshotImage: UIImage?
@@ -49,11 +53,14 @@ struct MapSummaryView: View {
                 // Map View with screenshot capture
                 MapReader { proxy in
                     Map(position: $cameraPosition) {
-                        // Route Polyline with gradient effect (draw multiple segments)
-                        if session.route.count > 1 {
-                            ForEach(Array(routeSegments.enumerated()), id: \.offset) { index, segment in
-                                MapPolyline(coordinates: segment)
-                                    .stroke(gradientColor(for: index, total: routeSegments.count), lineWidth: 3)
+                        // Route Polyline - use simplified route
+                        if displayRoute.count > 1 {
+                            // Draw in chunks to avoid overwhelming the renderer
+                            ForEach(Array(displayRoute.chunked(into: 100).enumerated()), id: \.offset) { chunkIndex, chunk in
+                                if chunk.count > 1 {
+                                    MapPolyline(coordinates: Array(chunk))
+                                        .stroke(Color.blue.opacity(0.7), lineWidth: 3)
+                                }
                             }
                         }
                         
@@ -167,6 +174,10 @@ struct MapSummaryView: View {
                     .onAppear {
                         updateMapRegion()
                         loadPlaceNames()
+                    }
+                    .task {
+                        // Simplify route asynchronously when view appears
+                        await simplifyRouteForDisplay()
                     }
                 }
                 
@@ -370,6 +381,25 @@ struct MapSummaryView: View {
         }
     }
     
+    private func simplifyRouteForDisplay() async {
+        guard !session.route.isEmpty else { return }
+        
+        isSimplifyingRoute = true
+        
+        // Simplify in background
+        let simplified = await Task.detached(priority: .userInitiated) {
+            let tolerance = session.route.count > 1000 ? 20.0 : 10.0
+            let simplified = RouteSimplifier.simplify(locations: session.route, tolerance: tolerance)
+            return simplified.map { $0.coordinate }
+        }.value
+        
+        await MainActor.run {
+            simplifiedRoute = simplified
+            isSimplifyingRoute = false
+            print("📍 Simplified route: \(session.route.count) → \(simplified.count) points")
+        }
+    }
+    
     // MARK: - Update Dwell Venue Name
     
     private func updateDwellVenueName(dwellId: UUID, newName: String?) {
@@ -472,6 +502,10 @@ struct MapSummaryView: View {
             case .marathon: return .red
             }
         }
+    }
+    
+    private var displayRoute: [CLLocationCoordinate2D] {
+        simplifiedRoute.isEmpty ? [] : simplifiedRoute
     }
     
     // MARK: - Summary Card
@@ -865,39 +899,43 @@ struct MapSummaryView: View {
             return
         }
         
+        // Load in batches to avoid overwhelming the geocoding service
         Task {
-            await withTaskGroup(of: (UUID, String?).self) { group in
-                for dwell in session.dwells {
-                    group.addTask {
-                        // Use displayName if available (respects manual override)
-                        if let displayName = await dwell.displayName {
-                            return (dwell.id, displayName)
+            let batchSize = 3 // Load 3 at a time
+            let batches = session.dwells.chunked(into: batchSize)
+            
+            for batch in batches {
+                await withTaskGroup(of: (UUID, String?).self) { group in
+                    for dwell in batch {
+                        group.addTask {
+                            if let displayName = await dwell.displayName {
+                                return (dwell.id, displayName)
+                            }
+                            
+                            let placeName = await GeocodingService.shared.getBestVenueName(for: dwell.location)
+                            return (dwell.id, placeName)
                         }
-                        
-                        // Otherwise fetch from geocoding service
-                        let placeName = await GeocodingService.shared.getBestVenueName(for: dwell.location)
-                        return (dwell.id, placeName)
+                    }
+                    
+                    for await (dwellId, placeName) in group {
+                        await MainActor.run {
+                            loadedCount += 1
+                            
+                            if let placeName = placeName {
+                                dwellPlaceNames[dwellId] = placeName
+                            }
+                        }
                     }
                 }
                 
-                for await (dwellId, placeName) in group {
-                    await MainActor.run {
-                        loadedCount += 1
-                        
-                        if let placeName = placeName {
-                            print("📍 Loaded place name: \(placeName) for dwell \(dwellId)")
-                            dwellPlaceNames[dwellId] = placeName
-                        }
-                        
-                        // Auto-hide loading indicator after all loaded
-                        if loadedCount >= session.dwells.count {
-                            // Brief delay before hiding
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                withAnimation(.easeOut(duration: 0.3)) {
-                                    isLoadingPlaceNames = false
-                                }
-                            }
-                        }
+                // Small delay between batches
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            }
+            
+            await MainActor.run {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        isLoadingPlaceNames = false
                     }
                 }
             }
@@ -1285,6 +1323,15 @@ struct MapSummaryView: View {
     }
     
     return MapSummaryView(session: session)
+}
+
+// MARK: - Array Chunking Extension
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
+    }
 }
 
 class MapViewModel: ObservableObject {

@@ -17,7 +17,7 @@ struct BarTrailActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         var startTime: Date
         var currentDistance: Double // in meters
-        var currentStops: Int
+//        var currentStops: Int
         var currentDrinks: Int // NEW
         var elapsedTime: TimeInterval
         var lastUpdateTime: Date
@@ -62,7 +62,7 @@ class LiveActivityManager: ObservableObject {
             let initialState = BarTrailActivityAttributes.ContentState(
                 startTime: startTime,
                 currentDistance: 0,
-                currentStops: 0,
+//                currentStops: 0,
                 currentDrinks: 0,
                 elapsedTime: 0,
                 lastUpdateTime: Date()
@@ -113,7 +113,7 @@ class LiveActivityManager: ObservableObject {
                 let updatedState = BarTrailActivityAttributes.ContentState(
                     startTime: activity.content.state.startTime,
                     currentDistance: distance,
-                    currentStops: stops,
+//                    currentStops: stops,
                     currentDrinks: drinks,
                     elapsedTime: elapsedTime,
                     lastUpdateTime: Date()
@@ -148,7 +148,7 @@ class LiveActivityManager: ObservableObject {
             let finalState = BarTrailActivityAttributes.ContentState(
                 startTime: activity.content.state.startTime,
                 currentDistance: finalDistance,
-                currentStops: finalStops,
+//                currentStops: finalStops,
                 currentDrinks: finalDrinks,
                 elapsedTime: duration,
                 lastUpdateTime: Date()

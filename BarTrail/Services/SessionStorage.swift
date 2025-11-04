@@ -114,15 +114,21 @@ class SessionStorage: ObservableObject {
     // MARK: - Persistence
     
     private func saveSessions() {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        
-        do {
-            let data = try encoder.encode(sessions)
-            UserDefaults.standard.set(data, forKey: storageKey)
-            print("💾 Saved \(sessions.count) sessions to storage")
-        } catch {
-            print("❌ Failed to save sessions: \(error)")
+        // Save on background thread to avoid blocking UI
+        Task.detached(priority: .utility) {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            
+            do {
+                let data = try encoder.encode(self.sessions)
+                
+                await MainActor.run {
+                    UserDefaults.standard.set(data, forKey: self.storageKey)
+                    print("💾 Saved \(self.sessions.count) sessions (\(data.count / 1024)KB)")
+                }
+            } catch {
+                print("❌ Failed to save sessions: \(error)")
+            }
         }
     }
     

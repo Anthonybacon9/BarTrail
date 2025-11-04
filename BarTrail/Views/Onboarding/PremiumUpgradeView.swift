@@ -519,16 +519,15 @@ struct PremiumUpgradeSheet: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
                         
-                        // FIXED: Legal links (REQUIRED)
                         HStack(spacing: 16) {
-                            Link("Privacy Policy", destination: URL(string: "https://yourwebsite.com/privacy")!)
+                            Link("Privacy Policy", destination: URL(string: "https://anthonybacon9.github.io/BarTrail/privacy.html")!)
                                 .font(Font.custom("Poppins-Regular", size: 12))
                                 .foregroundColor(.blue)
                             
                             Text("•")
                                 .foregroundColor(.secondary)
                             
-                            Link("Terms of Use", destination: URL(string: "https://yourwebsite.com/terms")!)
+                            Link("Terms of Use", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
                                 .font(Font.custom("Poppins-Regular", size: 12))
                                 .foregroundColor(.blue)
                         }
